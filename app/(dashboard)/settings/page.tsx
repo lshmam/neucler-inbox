@@ -1,6 +1,5 @@
 import { getMerchantId } from "@/lib/auth-helpers";
 import { supabaseAdmin } from "@/lib/supabase";
-// import { OnboardingForm } from "@/app/onboarding-square/form"; // Reusing your form
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function SettingsPage() {

@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase-server"; // <--- Use this instead of supabaseAdmin for auth
-import { supabaseAdmin } from "@/lib/supabase"; // Keep this for data fetching if you prefer
-import { getMerchantInfo, getDailyStats } from "@/lib/square";
+import { createClient } from "@/lib/supabase-server";
+import { supabaseAdmin } from "@/lib/supabase";
 import {
     Card,
     CardContent,
@@ -25,7 +24,6 @@ import {
     Activity,
     TrendingUp
 } from "lucide-react";
-import { SyncButton } from "@/components/SyncButton";
 
 export default async function DashboardPage() {
     // 1. Initialize Supabase Client
@@ -38,8 +36,8 @@ export default async function DashboardPage() {
     // 3. Fetch Core Merchant Data using the User ID
     const { data: merchant } = await supabase
         .from("merchants")
-        .select("id, platform_merchant_id, access_token, business_name")
-        .eq("id", user.id) // Match Auth ID
+        .select("id, platform_merchant_id, business_name")
+        .eq("id", user.id)
         .single();
 
     // Safety: If logged in but no merchant row, send to onboarding
@@ -47,11 +45,9 @@ export default async function DashboardPage() {
 
     // Define the ID used for Foreign Keys in other tables
     const merchantId = merchant.platform_merchant_id;
-    const hasSquareConnection = merchant.access_token && merchant.access_token !== "pending_generation";
 
     // 4. Fetch EVERYTHING in Parallel
     const [
-        squareStats,
         customerCount,
         agents,
         automations,
@@ -59,27 +55,22 @@ export default async function DashboardPage() {
         campaigns,
         recentMessages
     ] = await Promise.all([
-        // A. Revenue (Handle case where Square isn't connected yet)
-        hasSquareConnection
-            ? getDailyStats(merchantId, merchant.access_token)
-            : Promise.resolve({ total: "0.00", count: 0 }),
-
-        // B. Customers
+        // A. Customers
         supabaseAdmin.from("customers").select("*", { count: "exact", head: true }).eq("merchant_id", merchantId),
 
-        // C. Voice Agents
+        // B. Voice Agents
         supabaseAdmin.from("ai_agents").select("*").eq("merchant_id", merchantId),
 
-        // D. Automations (SMS)
+        // C. Automations (SMS)
         supabaseAdmin.from("automations").select("*").eq("merchant_id", merchantId).eq("is_active", true),
 
-        // E. Web Widget
+        // D. Web Widget
         supabaseAdmin.from("web_widgets").select("*").eq("merchant_id", merchantId),
 
-        // F. Email Campaigns
+        // E. Email Campaigns
         supabaseAdmin.from("email_campaigns").select("*", { count: "exact", head: true }).eq("merchant_id", merchantId),
 
-        // G. Recent Activity Log
+        // F. Recent Activity Log
         supabaseAdmin.from("messages").select("*").eq("merchant_id", merchantId).order('created_at', { ascending: false }).limit(5)
     ]);
 
@@ -145,23 +136,19 @@ export default async function DashboardPage() {
                         Overview for <strong>{merchant.business_name}</strong>
                     </p>
                 </div>
-                <div className="flex items-center space-x-2">
-                    {/* Only show Sync button if Square is connected */}
-                    {hasSquareConnection && <SyncButton />}
-                </div>
             </div>
 
             {/* TOP ROW: REAL-TIME STATS */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Today's Revenue</CardTitle>
-                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                        <CardTitle className="text-sm font-medium">Total Messages</CardTitle>
+                        <MessageSquare className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${squareStats.total}</div>
+                        <div className="text-2xl font-bold">{recentMessages.data?.length || 0}</div>
                         <p className="text-xs text-muted-foreground">
-                            {hasSquareConnection ? `${squareStats.count} orders via Square` : "Connect Square to see orders"}
+                            Recent conversations
                         </p>
                     </CardContent>
                 </Card>

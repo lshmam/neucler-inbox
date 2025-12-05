@@ -37,7 +37,8 @@ export async function POST(request: Request) {
         }
 
         // 3. Determine which column to increment
-        let columnToIncrement = "";
+        type CampaignColumn = 'delivered_count' | 'open_count' | 'click_count' | 'failure_count' | 'complaint_count';
+        let columnToIncrement: CampaignColumn | "" = "";
         let checkUniqueness = false;
 
         switch (eventType) {
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
             }
 
-            const currentValue = campaign[columnToIncrement] || 0;
+            const currentValue = (campaign as Record<string, any>)[columnToIncrement] || 0;
             const { error: updateError } = await supabaseAdmin
                 .from('email_campaigns')
                 .update({ [columnToIncrement]: currentValue + 1 })

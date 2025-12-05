@@ -564,7 +564,7 @@ function FinalStep({ merchantId, finalData, onSave }: { merchantId: string, fina
 }
 
 // --- MAIN CONTROLLER ---
-export function AgentSetupWizard({ merchantId }: { merchantId: string }) {
+export function AgentSetupWizard({ merchantId, businessProfile }: { merchantId: string; businessProfile?: any }) {
     const router = useRouter();
     const [step, setStep] = useState(1);
     const [wizardData, setWizardData] = useState<any>({});

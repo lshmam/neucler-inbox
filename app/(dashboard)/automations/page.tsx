@@ -42,13 +42,13 @@ const AUTOMATIONS_LIB = [
                 defaultMessage: "Thanks for visiting! If you enjoyed your service, please leave us a review here: [Link]",
                 inputs: [{ label: "Google Review Link", key: "review_link", type: "text", placeholder: "https://g.page/..." }]
             },
-            {
-                id: "loyalty_milestone",
-                title: "Loyalty Milestones",
-                description: "Notify customers when they are close to unlocking a reward.",
-                iconName: "Gift", // CHANGED TO STRING
-                defaultMessage: "You're only 12 points away from a free reward! Book now to earn points.",
-            },
+            // {
+            //     id: "loyalty_milestone",
+            //     title: "Loyalty Milestones",
+            //     description: "Notify customers when they are close to unlocking a reward.",
+            //     iconName: "Gift", // CHANGED TO STRING
+            //     defaultMessage: "You're only 12 points away from a free reward! Book now to earn points.",
+            // },
             {
                 id: "referral_request",
                 title: "Referral Request",

@@ -49,7 +49,7 @@ export default async function AnalyticsPage() {
                     <CardContent>
                         <div className="text-2xl font-bold">${data.revenue}</div>
                         <p className="text-xs text-muted-foreground">
-                            Processed via Square
+                            Processed via Stripe
                         </p>
                     </CardContent>
                 </Card>
