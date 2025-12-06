@@ -58,6 +58,7 @@ const NAV_SECTIONS = [
     {
         title: "Account",
         items: [
+            { label: "Usage", href: "/usage", icon: TrendingUp },
             { label: "Subscription", href: "/subscription", icon: CreditCard },
             { label: "Settings", href: "/settings", icon: Settings },
         ]
@@ -73,7 +74,7 @@ interface SidebarProps {
 }
 
 const DEFAULT_BRANDING = {
-    name: "Clover AI",
+    name: "Neucler AI",
     logo: null,
     color: "blue"
 };

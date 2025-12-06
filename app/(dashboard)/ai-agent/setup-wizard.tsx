@@ -52,7 +52,7 @@ function BusinessSearchStep({ onSelect }: { onSelect: (data: any) => void }) {
         // Fetch REAL details using the Maps JS API Service
         const service = new window.google.maps.places.PlacesService(document.createElement('div'));
 
-        service.getDetails({ placeId, fields: ['name', 'formatted_address', 'rating', 'user_ratings_total'] }, (place, status) => {
+        service.getDetails({ placeId, fields: ['name', 'formatted_address', 'rating', 'user_ratings_total', 'website'] }, (place, status) => {
             setLoadingDetails(false);
             if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
                 setSelectedPlace({
@@ -60,6 +60,7 @@ function BusinessSearchStep({ onSelect }: { onSelect: (data: any) => void }) {
                     address: place.formatted_address,
                     rating: place.rating || 0,
                     reviews: place.user_ratings_total || 0,
+                    website: (place as any).website || "",
                 });
             } else {
                 // Fallback if API fails
@@ -67,7 +68,8 @@ function BusinessSearchStep({ onSelect }: { onSelect: (data: any) => void }) {
                     name: description.split(',')[0],
                     address: description,
                     rating: 0,
-                    reviews: 0
+                    reviews: 0,
+                    website: "",
                 });
             }
         });
@@ -137,6 +139,17 @@ function BusinessSearchStep({ onSelect }: { onSelect: (data: any) => void }) {
                             <h3 className="font-bold text-lg">{selectedPlace.name}</h3>
                             <p className="text-sm text-muted-foreground">{selectedPlace.address}</p>
 
+                            {/* Website Input */}
+                            <div className="mt-2">
+                                <Label className="text-xs text-muted-foreground">Website (Optional - for AI training)</Label>
+                                <Input
+                                    value={selectedPlace.website}
+                                    onChange={(e) => setSelectedPlace({ ...selectedPlace, website: e.target.value })}
+                                    placeholder="https://example.com"
+                                    className="h-8 text-sm mt-1"
+                                />
+                            </div>
+
                             {/* REAL RATINGS DISPLAY */}
                             {selectedPlace.rating > 0 ? (
                                 <div className="flex items-center gap-1 text-yellow-500 text-sm">
@@ -164,28 +177,47 @@ function BusinessSearchStep({ onSelect }: { onSelect: (data: any) => void }) {
     );
 }
 
-// --- STEP 2: TRAINING SIMULATION (Unchanged) ---
-function TrainingStep({ businessName, onComplete }: { businessName: string, onComplete: () => void }) {
+// --- STEP 2: TRAINING SIMULATION (Updated with API Call) ---
+function TrainingStep({ businessName, websiteUrl, onComplete }: { businessName: string, websiteUrl: string, onComplete: (prompt: string) => void }) {
     const [progress, setProgress] = useState(0);
     const [statusText, setStatusText] = useState("Initializing...");
 
     useEffect(() => {
+        let generatedPrompt = "";
+
+        // Start the API call immediately
+        const fetchPrompt = async () => {
+            try {
+                const res = await fetch("/api/onboarding/process-website", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ businessName, websiteUrl })
+                });
+                const data = await res.json();
+                generatedPrompt = data.systemPrompt || `You are a helpful AI receptionist for ${businessName}.`;
+            } catch (e) {
+                console.error("Prompt generation failed", e);
+                generatedPrompt = `You are a helpful AI receptionist for ${businessName}.`;
+            }
+        };
+        fetchPrompt();
+
         const interval = setInterval(() => {
             setProgress((prev) => {
                 if (prev >= 100) {
                     clearInterval(interval);
-                    setTimeout(onComplete, 800);
+                    setTimeout(() => onComplete(generatedPrompt), 800);
                     return 100;
                 }
                 if (prev === 10) setStatusText(`Reading reviews for ${businessName}...`);
-                if (prev === 40) setStatusText("Analyzing services and pricing...");
-                if (prev === 70) setStatusText("Generating conversational style...");
+                if (prev === 30) setStatusText(websiteUrl ? `Scraping ${websiteUrl}...` : "Analyzing business details...");
+                if (prev === 60) setStatusText("Drafting system prompt...");
                 if (prev === 90) setStatusText("Finalizing voice model...");
                 return prev + 1;
             });
-        }, 40);
+        }, 80); // Slightly slower to give API time (8s total)
         return () => clearInterval(interval);
-    }, [businessName, onComplete]);
+    }, [businessName, websiteUrl, onComplete]);
 
     return (
         <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-8">
@@ -393,6 +425,59 @@ function VoiceIdentityStep({ businessName, onNext }: { businessName: string, onN
     );
 }
 
+// --- NEW STEP: KNOWLEDGE BASE ---
+function KnowledgeBaseStep({ initialPrompt, onNext }: { initialPrompt: string, onNext: (prompt: string) => void }) {
+    const [systemPrompt, setSystemPrompt] = useState(initialPrompt);
+    const [extraInfo, setExtraInfo] = useState("");
+
+    const handleContinue = () => {
+        // Combine them if needed, or just pass the edited prompt
+        // Here we append the extra info to the prompt if it's not empty
+        let finalPrompt = systemPrompt;
+        if (extraInfo.trim()) {
+            finalPrompt += `\n\n## ADDITIONAL KNOWLEDGE\n${extraInfo}`;
+        }
+        onNext(finalPrompt);
+    };
+
+    return (
+        <div className="max-w-xl mx-auto space-y-8 mt-6">
+            <div className="space-y-2">
+                <h2 className="text-3xl font-bold">Knowledge Base</h2>
+                <p className="text-muted-foreground">Review what your agent knows about your business.</p>
+            </div>
+
+            <div className="space-y-4">
+                <div className="space-y-2">
+                    <Label>System Prompt (Generated from Website)</Label>
+                    <textarea
+                        className="flex min-h-[200px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        value={systemPrompt}
+                        onChange={(e) => setSystemPrompt(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">This is the "brain" of your AI. Feel free to edit it.</p>
+                </div>
+
+                <div className="space-y-2">
+                    <Label>Anything else you'd like the agent to know?</Label>
+                    <textarea
+                        className="flex min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        placeholder="e.g. We have a special promotion on Tuesdays..."
+                        value={extraInfo}
+                        onChange={(e) => setExtraInfo(e.target.value)}
+                    />
+                </div>
+            </div>
+
+            <div className="pt-6 flex justify-end">
+                <Button size="lg" className="bg-black text-white hover:bg-gray-800" onClick={handleContinue}>
+                    Continue <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+            </div>
+        </div>
+    );
+}
+
 // --- STEP 4: CONFIGURATION (Delay & Hours) ---
 function ConfigStep({ onNext }: { onNext: (data: any) => void }) {
     const [config, setConfig] = useState({
@@ -524,6 +609,7 @@ function FinalStep({ merchantId, finalData, onSave }: { merchantId: string, fina
             // Mapping new config
             pickupBehavior: finalData.config.pickupMode,
             pickupDelay: finalData.config.delaySeconds,
+            systemPrompt: finalData.systemPrompt, // <--- Pass the generated prompt
         };
 
         try {
@@ -588,28 +674,46 @@ export function AgentSetupWizard({ merchantId, businessProfile }: { merchantId: 
                         )}
 
                         {step === 2 && (
-                            <TrainingStep businessName={wizardData.businessName} onComplete={nextStep} />
+                            <TrainingStep
+                                businessName={wizardData.businessName}
+                                websiteUrl={wizardData.website}
+                                onComplete={(prompt) => {
+                                    setWizardData({ ...wizardData, generatedPrompt: prompt });
+                                    nextStep();
+                                }}
+                            />
                         )}
 
                         {step === 3 && (
                             <VoiceIdentityStep businessName={wizardData.businessName} onNext={(data) => {
-                                setWizardData({ ...wizardData, ...data }); // Stores agentName, callType, voiceGender
+                                setWizardData({ ...wizardData, ...data });
                                 nextStep();
                             }} />
                         )}
 
+                        {/* Insert Knowledge Base Step */}
                         {step === 4 && (
+                            <KnowledgeBaseStep
+                                initialPrompt={wizardData.generatedPrompt}
+                                onNext={(finalPrompt) => {
+                                    setWizardData({ ...wizardData, systemPrompt: finalPrompt });
+                                    nextStep();
+                                }}
+                            />
+                        )}
+
+                        {step === 5 && (
                             <ConfigStep onNext={(config) => {
                                 setWizardData({ ...wizardData, config });
                                 nextStep();
                             }} />
                         )}
 
-                        {step === 5 && (
-                            <FinalStep merchantId={merchantId} finalData={wizardData} onSave={() => setStep(6)} />
+                        {step === 6 && (
+                            <FinalStep merchantId={merchantId} finalData={wizardData} onSave={() => setStep(7)} />
                         )}
 
-                        {step === 6 && (
+                        {step === 7 && (
                             <div className="text-center py-20 space-y-6 max-w-lg mx-auto">
                                 <div className="mx-auto h-24 w-24 bg-green-100 rounded-full flex items-center justify-center">
                                     <CheckCircle2 className="h-12 w-12 text-green-600" />

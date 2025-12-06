@@ -18,7 +18,7 @@ export async function saveAgentConfig(merchantId: string, config: any, agentId?:
 
         // 2. Construct the AI System Prompt (The "Brain")
         // We still put everything here for the AI to read, but we ALSO save to columns below.
-        const constructedPrompt = `
+        const constructedPrompt = config.systemPrompt || `
             You are ${config.name}, the AI receptionist for ${businessName}.
             LANGUAGE: ${config.language || 'en-US'}
             TONE: ${config.voiceVibe || 'friendly'}

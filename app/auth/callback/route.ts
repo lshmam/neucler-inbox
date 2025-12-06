@@ -27,7 +27,14 @@ export async function GET(request: Request) {
                 // 3. Decide where to go
                 if (merchant) {
                     // User exists -> Dashboard
-                    return NextResponse.redirect(`${origin}/dashboard`)
+                    const response = NextResponse.redirect(`${origin}/dashboard`)
+                    response.cookies.set('session_merchant_id', merchant.id, {
+                        path: '/',
+                        httpOnly: true,
+                        sameSite: 'lax',
+                        maxAge: 60 * 60 * 24 * 7 // 1 week
+                    })
+                    return response
                 } else {
                     // User is new -> Onboarding
                     return NextResponse.redirect(`${origin}/onboarding`)

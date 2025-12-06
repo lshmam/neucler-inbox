@@ -6,7 +6,7 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'AI Autopilot for Clover',
+  title: 'Neucler AI Dashboard',
   description: 'Your 24/7 AI-powered business assistant.',
 };
 
