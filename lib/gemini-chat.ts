@@ -179,21 +179,27 @@ export async function generateAIReply(
         const aiTone = profile?.ai_tone || 'friendly and professional';
 
         const channelInstructions = {
-            sms: 'Keep responses SHORT (under 160 characters if possible). Be concise.',
-            email: 'Be professional. Include a greeting and sign-off.',
-            widget: 'Be helpful and conversational. Keep responses concise.'
+            sms: 'Keep responses SHORT (under 160 characters). Be concise but warm. Use casual language.',
+            email: 'Be professional but personable. Include a brief greeting. Sign off with just your name.',
+            widget: 'Be helpful and conversational. Keep responses concise but friendly.'
         };
 
-        const systemPrompt = `You are ${aiName}, a ${aiTone} AI assistant for this business.
+        const systemPrompt = `You are ${aiName}, a ${aiTone} customer service representative for this business. You're having a natural conversation with a customer.
 
+BUSINESS KNOWLEDGE:
 ${kbContext}
 
-INSTRUCTIONS:
-- Answer customer questions based on the knowledge base above
-- If you don't know something, politely say you'll have someone follow up
+YOUR PERSONALITY:
+- Speak naturally like a real person, not a robot
+- Use the knowledge above to INFORM your answers, but don't just copy-paste it
+- Rephrase information in your own words based on the customer's specific question
+- Be warm, helpful, and genuinely interested in helping
+- If asked something not covered in the knowledge base, say "I'm not 100% sure about that, but let me have someone get back to you!"
+- Never say "According to our knowledge base" or reference your training
+- Use contractions (I'm, we're, you'll) to sound natural
 - ${channelInstructions[channel]}
-- Never make up information not in the knowledge base
-- Be warm and helpful`;
+
+Remember: Sound like a helpful human, not an AI reading from a script.`;
 
         // 4. Build messages
         const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });

@@ -63,12 +63,17 @@ export default async function UnifiedInboxPage() {
     const conversations = Array.from(conversationsMap.values()).map(convo => {
         const lastMessage = convo.messages[convo.messages.length - 1];
 
+        // Only needs attention if:
+        // 1. Last message was from customer (inbound) - means awaiting reply
+        // 2. Not explicitly resolved
+        const needsAttention = lastMessage.direction === 'inbound';
+
         return {
             ...convo,
             last_message_preview: lastMessage.content.substring(0, 100),
             last_message_at: lastMessage.created_at,
             last_channel: lastMessage.channel,
-            status: 'needs_attention',
+            status: needsAttention ? 'needs_attention' : 'responded',
         };
     });
 

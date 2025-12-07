@@ -174,6 +174,9 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
         const isEmail = selectedContact.last_channel === 'email';
         const channel = isEmail ? 'email' : 'sms';
 
+        // Show loading toast
+        const loadingToast = toast.loading(`Sending ${channel.toUpperCase()}...`);
+
         // Optimistic update
         const tempId = Math.random().toString();
         const optimisticMsg = {
@@ -209,11 +212,13 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                 throw new Error("Failed to send");
             }
 
-            // Note: Realtime subscription will likely catch the sent message too if the API saves it.
-            // We might get a duplicate if we don't handle it, but for now it's fine.
+            // Success toast
+            toast.dismiss(loadingToast);
+            toast.success(`${channel.toUpperCase()} sent!`);
 
         } catch (error) {
             console.error(`Failed to send ${channel}:`, error);
+            toast.dismiss(loadingToast);
             toast.error(`Failed to send ${channel}`);
             setMessages(prev => prev.filter(m => m.id !== tempId));
             setNewMessage(textToSend);
