@@ -61,12 +61,16 @@ async function checkUsageLimit(merchantId: string): Promise<{ allowed: boolean; 
 async function incrementUsage(merchantId: string): Promise<void> {
     const monthYear = new Date().toISOString().slice(0, 7);
 
-    // Upsert: create if not exists, increment if exists
-    await supabaseAdmin.rpc('increment_ai_usage', {
-        p_merchant_id: merchantId,
-        p_month_year: monthYear
-    }).then(() => { }).catch(async () => {
-        // Fallback if RPC doesn't exist: manual upsert
+    // Try RPC first, fallback to manual upsert
+    try {
+        const { error } = await supabaseAdmin.rpc('increment_ai_usage', {
+            p_merchant_id: merchantId,
+            p_month_year: monthYear
+        });
+
+        if (error) throw error;
+    } catch {
+        // Fallback: manual upsert
         const { data: existing } = await supabaseAdmin
             .from('ai_reply_usage')
             .select('id, reply_count')
@@ -84,7 +88,7 @@ async function incrementUsage(merchantId: string): Promise<void> {
                 .from('ai_reply_usage')
                 .insert({ merchant_id: merchantId, month_year: monthYear, reply_count: 1 });
         }
-    });
+    }
 }
 
 /**
