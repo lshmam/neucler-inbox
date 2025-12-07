@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from "@/lib/supabase-server";
-import { redirect } from "next/navigation";
+import { supabaseAdmin } from "@/lib/supabase"; // Import admin client
 
 // Define the shape of data coming from your form
 interface OnboardingData {
@@ -11,6 +11,7 @@ interface OnboardingData {
     website: string;
     business_hours: string[];
     services: string[];
+    generated_articles: { title: string; content: string; category: string }[];
 }
 
 export async function saveOnboardingData(data: OnboardingData) {
@@ -23,48 +24,67 @@ export async function saveOnboardingData(data: OnboardingData) {
         throw new Error("User not authenticated");
     }
 
-    // 2. Generate a custom Platform Merchant ID
-    // We clean the UUID to look more like a merchant ID (e.g., m_12345...)
-    const platformMerchantId = `m_${user.id.replace(/-/g, '')}`;
+    console.log("🔑 [Onboarding] Saving data for user:", user.id);
 
-    // 3. Insert into MERCHANTS table
-    // We use the User ID as the Primary Key so it links 1:1 with Auth
-    const { error: merchantError } = await supabase
+    // 2. Insert into MERCHANTS table (uses user.id as primary key)
+    const { error: merchantError } = await supabaseAdmin
         .from('merchants')
-        .insert({
-            id: user.id, // Link to Supabase Auth
-            platform_merchant_id: platformMerchantId,
+        .upsert({
+            id: user.id,
+            platform_merchant_id: user.id, // Keep them the same for simplicity
             email: user.email,
             business_name: data.business_name,
             subscription_status: 'trialing',
-            access_token: 'pending_generation' // Placeholder requirement from your schema
-        });
+            access_token: 'pending_generation'
+        }, { onConflict: 'id' });
 
     if (merchantError) {
-        console.error("Merchant Insert Error:", merchantError);
+        console.error("Merchant Upsert Error:", merchantError);
         throw new Error("Failed to create merchant account");
     }
+    console.log("✅ [Onboarding] Merchant created/updated");
 
-    // 4. Insert into BUSINESS_PROFILES table
-    // This uses the platform_merchant_id as the Foreign Key
-    const { error: profileError } = await supabase
+    // 3. Insert into BUSINESS_PROFILES table
+    // Using user.id as the merchant_id so dashboard can find it
+    const { error: profileError } = await supabaseAdmin
         .from('business_profiles')
-        .insert({
-            merchant_id: platformMerchantId,
+        .upsert({
+            merchant_id: user.id, // <-- CRITICAL: Use user.id, not a generated ID
             address: data.address,
             phone: data.phone,
             website: data.website,
-            business_hours: JSON.stringify(data.business_hours), // Convert array to JSONB
-            // services_summary: data.services.join(', '), // Optional: Map services if needed
+            business_hours: JSON.stringify(data.business_hours),
+            services_summary: data.services.join(', '),
             is_onboarding_completed: true
-        });
+        }, { onConflict: 'merchant_id' });
 
     if (profileError) {
-        console.error("Profile Insert Error:", profileError);
-        // Ideally, rollback merchant creation here, but for now we throw
+        console.error("Profile Upsert Error:", profileError);
         throw new Error("Failed to save business profile details");
     }
+    console.log("✅ [Onboarding] Business profile created/updated");
 
-    // 5. Return success (Controller will handle redirect)
+    // 4. Insert Knowledge Base Articles (if any)
+    if (data.generated_articles && data.generated_articles.length > 0) {
+        const articlesToInsert = data.generated_articles.map(article => ({
+            merchant_id: user.id, // <-- CRITICAL: Use user.id
+            title: article.title,
+            content: article.content,
+            category: article.category,
+            is_published: true
+        }));
+
+        const { error: articlesError } = await supabaseAdmin
+            .from('knowledge_base_articles')
+            .insert(articlesToInsert);
+
+        if (articlesError) {
+            console.error("Articles Insert Error:", articlesError);
+            throw new Error(`Failed to save articles: ${articlesError.message}`);
+        }
+        console.log(`✅ [Onboarding] ${articlesToInsert.length} KB articles created`);
+    }
+
+    // 5. Return success
     return { success: true };
 }

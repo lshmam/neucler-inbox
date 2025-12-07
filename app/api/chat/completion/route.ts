@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
-import OpenAI from "openai";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { generateAIReply } from "@/lib/gemini-chat";
 
 export async function POST(request: Request) {
     try {
@@ -62,33 +60,26 @@ export async function POST(request: Request) {
             }
         }
 
-        // 2. Fetch the System Prompt
-        const { data: agent } = await supabaseAdmin
-            .from("ai_agents")
-            .select("system_prompt, name")
-            .eq("merchant_id", merchantId)
-            .single();
-
-        const systemPrompt = agent?.system_prompt || "You are a helpful customer support AI. Be concise and friendly.";
-
-        // 3. Prepare Messages for OpenAI
+        // 2. Build conversation history
         const previousMessages = Array.isArray(history) ? history.slice(-5) : [];
-        const apiMessages = [
-            { role: "system", content: systemPrompt },
-            ...previousMessages.map((m: any) => ({ role: m.role, content: m.content })),
-            { role: "user", content: message }
-        ];
+        const formattedHistory = previousMessages.map((m: any) => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.content
+        }));
 
-        // 4. Call OpenAI
-        const completion = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: apiMessages as any,
-            max_tokens: 200,
-        });
+        // 3. Generate AI reply using Gemini
+        const aiResult = await generateAIReply(merchantId, message, formattedHistory, 'widget');
 
-        const reply = completion.choices[0].message.content;
+        let reply = "I'm sorry, I'm having trouble responding right now. Please try again shortly.";
 
-        // 5. Save messages to database
+        if (aiResult.success && aiResult.reply) {
+            reply = aiResult.reply;
+        } else if (aiResult.limitReached) {
+            reply = "Thanks for your message! Our team will get back to you shortly.";
+            console.log(`⚠️ Widget AI limit reached for ${merchantId}`);
+        }
+
+        // 4. Save messages to database
         if (customerId && leadInfo?.phone) {
             let normalizedPhone = leadInfo.phone.replace(/\D/g, "");
             if (normalizedPhone.length === 10) {
@@ -113,7 +104,6 @@ export async function POST(request: Request) {
 
             if (userMsgErr) {
                 console.error("❌ Failed to save user message (attempt 1):", userMsgErr);
-                // Retry without session_id
                 const { session_id, ...retryData } = userMsgData;
                 const { error: retryErr } = await supabaseAdmin.from("messages").insert(retryData);
                 userMsgErr = retryErr;
@@ -141,7 +131,6 @@ export async function POST(request: Request) {
 
                 if (aiMsgErr) {
                     console.error("❌ Failed to save AI message (attempt 1):", aiMsgErr);
-                    // Retry without session_id
                     const { session_id, ...retryData } = aiMsgData;
                     const { error: retryErr } = await supabaseAdmin.from("messages").insert(retryData);
                     aiMsgErr = retryErr;
@@ -156,9 +145,6 @@ export async function POST(request: Request) {
 
     } catch (error: any) {
         console.error("❌ Chat API Error:", error);
-        if (error.message?.includes("API key")) {
-            console.error("💡 TIP: Did you add OPENAI_API_KEY to your .env.local file?");
-        }
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }

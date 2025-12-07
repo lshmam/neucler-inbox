@@ -16,14 +16,14 @@ import { toast } from "sonner";
 import {
     PhoneMissed, CalendarX, History, Star, Gift, CalendarClock,
     MessageSquare, UserPlus, Megaphone, ListRestart, Info,
-    Receipt, BrainCircuit, Sparkles
+    Receipt, BrainCircuit, Sparkles, Bot
 } from "lucide-react";
 
 // 2. CREATE A MAP
 const ICON_MAP: Record<string, any> = {
     PhoneMissed, CalendarX, History, Star, Gift, CalendarClock,
     MessageSquare, UserPlus, Megaphone, ListRestart, Info,
-    Receipt, BrainCircuit, Sparkles
+    Receipt, BrainCircuit, Sparkles, Bot
 };
 
 interface AutomationProps {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import * as cheerio from 'cheerio';
+import { generateContentFromText } from "@/lib/openai";
 
 export async function POST(request: Request) {
     try {
@@ -36,45 +37,75 @@ export async function POST(request: Request) {
             google_rating: place.rating || 0,
             google_ratings_total: place.user_ratings_total || 0,
             services: [] as string[],
+            generated_articles: [] as { title: string; content: string; category: string }[],
         };
 
 
-        // --- 3. (OPTIONAL) WEBSITE SCRAPING ---
+        // --- 3. INTELLIGENT WEBSITE SCRAPING & ARTICLE GENERATION ---
         if (profileData.website) {
             try {
+                console.log(`Scraping website: ${profileData.website}`);
+                // Use a controller to abort if it takes too long
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
                 const webRes = await fetch(profileData.website, {
                     // Add a User-Agent so websites don't block the scraper immediately
-                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' }
+                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' },
+                    signal: controller.signal
                 });
+                clearTimeout(timeoutId);
 
                 if (webRes.ok) {
                     const html = await webRes.text();
                     const $ = cheerio.load(html);
 
-                    // Try to find links that contain "service" or "menu"
-                    const serviceLinks = $('a[href*="service"], a[href*="menu"], a[href*="treatment"]');
-                    const services: string[] = [];
+                    // Remove noise
+                    $('script, style, nav, footer, iframe, noscript, svg').remove();
 
-                    serviceLinks.each((i, el) => {
+                    // Extract substantial text content
+                    // We look for paragraphs, headings, and list items
+                    let textContent = "";
+                    $('p, h1, h2, h3, h4, h5, h6, li, article, section').each((_, el) => {
                         const text = $(el).text().trim();
-                        // Filter out garbage text
-                        if (text && text.length > 3 && text.length < 40) {
-                            services.push(text);
+                        if (text.length > 20) {
+                            textContent += text + "\n";
                         }
                     });
 
-                    // Fallback: If no links found, look for headings
-                    if (services.length === 0) {
-                        $('h2:contains("Services"), h2:contains("Menu"), h3:contains("Services")').next('ul').find('li').each((i, el) => {
-                            const text = $(el).text().trim();
-                            if (text && text.length < 50) services.push(text);
-                        });
-                    }
+                    // If we got enough text, send to LLM
+                    if (textContent.length > 100) {
+                        const prompt = `
+                            Analyze the following website content for a local business.
+                            Extract two things:
+                            1. "services": A list of specific services they offer (max 10 strings).
+                            2. "articles": A list of 5-8 Q&A knowledge base articles (max 8).
+                            
+                            Format the "articles" as objects with:
+                            - title: A question a customer might ask (e.g., "Do you offer same-day repairs?", "What are your prices?").
+                            - content: The answer based strictly on the text.
+                            - category: One of "Services", "Pricing", "Policies", "General".
 
-                    profileData.services = [...new Set(services)].slice(0, 10); // Limit to 10 unique services
+                            Return JSON format: { "services": [...], "articles": [...] }
+                        `;
+
+                        const generatedData = await generateContentFromText(textContent, prompt);
+
+                        if (generatedData) {
+                            console.log("LLM Generation Success:", generatedData);
+                            if (generatedData.services && Array.isArray(generatedData.services)) {
+                                profileData.services = generatedData.services;
+                            }
+                            if (generatedData.articles && Array.isArray(generatedData.articles)) {
+                                profileData.generated_articles = generatedData.articles;
+                            }
+                        }
+                    } else {
+                        console.log("Scraping: Not enough text content found.");
+                    }
                 }
             } catch (scrapeError) {
-                console.warn(`Scraping failed for ${profileData.website}:`, scrapeError);
+                console.warn(`Scraping/Generation failed for ${profileData.website}:`, scrapeError);
                 // We ignore scraping errors so the rest of the data still loads
             }
         }

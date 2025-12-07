@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
     Search, Phone, Mail, MessageSquare, CheckCircle2,
-    MoreHorizontal, Send, Mic, Clock, Loader2, Bot, Archive
+    MoreHorizontal, Send, Mic, Clock, Loader2, Bot, Archive, Sparkles
 } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -15,8 +15,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { createClient } from "@/lib/supabase-client";
 import { useRouter } from "next/navigation";
+import { toggleAutomation } from "@/app/actions/automations";
 
 // --- TYPES ---
 interface Conversation {
@@ -34,17 +36,20 @@ interface Conversation {
 interface InboxClientProps {
     initialConversations: Conversation[];
     merchantId: string;
+    isAiEnabled: boolean;
 }
 
 // --- COMPONENT ---
 
-export function InboxClient({ initialConversations, merchantId }: InboxClientProps) {
+export function InboxClient({ initialConversations, merchantId, isAiEnabled: initialAiEnabled }: InboxClientProps) {
     const [conversations, setConversations] = useState(initialConversations);
     const [selectedContact, setSelectedContact] = useState<Conversation | null>(null);
     const [messages, setMessages] = useState<any[]>([]);
     const [newMessage, setNewMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
     const [filter, setFilter] = useState<'needs_attention' | 'all'>('needs_attention');
+    const [aiEnabled, setAiEnabled] = useState(initialAiEnabled);
+    const [aiToggling, setAiToggling] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     const supabase = createClient();
@@ -248,7 +253,32 @@ export function InboxClient({ initialConversations, merchantId }: InboxClientPro
                 <div className="p-4 space-y-4">
                     <div className="flex items-center justify-between">
                         <h2 className="font-bold text-lg">Inbox</h2>
-                        <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
+                        <div className="flex items-center gap-2">
+                            <div
+                                className={`flex items-center gap-2 px-2 py-1 rounded-full text-xs font-medium transition-colors
+                                    ${aiEnabled ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'}`}
+                            >
+                                <Sparkles className="h-3 w-3" />
+                                <span>AI</span>
+                                <Switch
+                                    checked={aiEnabled}
+                                    disabled={aiToggling}
+                                    onCheckedChange={async (checked) => {
+                                        setAiToggling(true);
+                                        try {
+                                            await toggleAutomation(merchantId, 'ai_auto_reply', !checked);
+                                            setAiEnabled(checked);
+                                            toast.success(checked ? 'AI Auto-Reply enabled' : 'AI Auto-Reply disabled');
+                                        } catch (e) {
+                                            toast.error('Failed to update AI setting');
+                                        } finally {
+                                            setAiToggling(false);
+                                        }
+                                    }}
+                                    className="h-4 w-7 data-[state=checked]:bg-purple-600"
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     <div className="relative">
