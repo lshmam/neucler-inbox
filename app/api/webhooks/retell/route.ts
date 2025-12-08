@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import crypto from "crypto";
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import twilio from "twilio";
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const twilioClient = twilio(
+    process.env.TWILIO_ACCOUNT_SID,
+    process.env.TWILIO_AUTH_TOKEN
+);
 
 export async function POST(request: Request) {
     try {
@@ -54,7 +62,7 @@ export async function POST(request: Request) {
         // Fetch all agents and then find the match in code, trimming whitespace.
         const { data: allAgents } = await supabaseAdmin
             .from("ai_agents")
-            .select("id, merchant_id, retell_agent_id");
+            .select("id, merchant_id, retell_agent_id, phone_number");
 
         console.log(`📊 Found ${allAgents?.length || 0} agents in database:`);
         allAgents?.forEach((a, idx) => {
@@ -164,6 +172,78 @@ export async function POST(request: Request) {
             dataToUpdate.user_sentiment = analysis.user_sentiment;
             dataToUpdate.call_successful = analysis.call_successful;
             console.log("Analysis data:", dataToUpdate);
+
+            // --- POST-CALL SMS FOLLOW-UP ---
+            // Only send if call was successful (customer engaged)
+            if (analysis.call_successful === true && insertData.customer_phone) {
+                try {
+                    console.log("\n📱 Sending post-call follow-up SMS...");
+
+                    // Get merchant info
+                    const { data: merchant } = await supabaseAdmin
+                        .from("merchants")
+                        .select("business_name")
+                        .eq("id", agent.merchant_id)
+                        .single();
+
+                    const { data: profile } = await supabaseAdmin
+                        .from("business_profiles")
+                        .select("booking_link")
+                        .eq("merchant_id", agent.merchant_id)
+                        .single();
+
+                    const businessName = merchant?.business_name || "us";
+                    const bookingLink = profile?.booking_link || "our website";
+
+                    // Use Gemini to extract the main purpose/need from the call
+                    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+                    const summaryPrompt = `From this call summary, extract what the customer needs in 2-4 words. Only respond with the need, nothing else.
+
+Call summary: "${analysis.call_summary}"
+
+Examples of good responses:
+- "a haircut appointment"
+- "pricing information"
+- "booking a consultation"
+- "your services"`;
+
+                    let customerNeed = "your inquiry";
+                    try {
+                        const result = await model.generateContent(summaryPrompt);
+                        customerNeed = result.response.text().trim();
+                    } catch {
+                        console.log("⚠️ AI summary failed, using default");
+                    }
+
+                    // Build the SMS
+                    const smsMessage = `Thanks for calling ${businessName}! We can definitely help you with ${customerNeed}. Book a time here: ${bookingLink}`;
+
+                    // Send via Twilio
+                    await twilioClient.messages.create({
+                        body: smsMessage,
+                        from: agent.phone_number || call.to_number,
+                        to: insertData.customer_phone
+                    });
+
+                    console.log(`✅ Post-call SMS sent to ${insertData.customer_phone}`);
+
+                    // Save to messages table
+                    await supabaseAdmin.from("messages").insert({
+                        merchant_id: agent.merchant_id,
+                        customer_phone: insertData.customer_phone,
+                        direction: "outbound",
+                        body: smsMessage,
+                        channel: "sms",
+                        status: "sent",
+                        created_at: new Date().toISOString()
+                    });
+
+                } catch (smsError: any) {
+                    console.error("❌ Post-call SMS failed:", smsError.message);
+                    // Don't throw - continue processing
+                }
+            }
+            // --- END POST-CALL SMS ---
         }
 
         if (eventType === "call_ended") {
