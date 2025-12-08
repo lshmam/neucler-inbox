@@ -164,9 +164,14 @@ export async function POST(request: Request) {
         // 3. Prepare an object for the UPDATE.
         let dataToUpdate: any = {};
 
-        if (eventType === "call_analyzed" && body.call_analysis) {
+        console.log("\n🔍 DEBUG - Event check:");
+        console.log("   eventType:", eventType);
+        console.log("   call.call_analysis exists:", !!call.call_analysis);
+        console.log("   call.call_analysis:", JSON.stringify(call.call_analysis, null, 2));
+
+        if (eventType === "call_analyzed" && call.call_analysis) {
             console.log("\n📊 Processing call_analyzed event");
-            const analysis = body.call_analysis;
+            const analysis = call.call_analysis;
             dataToUpdate.summary = analysis.call_summary || "No summary provided.";
             dataToUpdate.in_voicemail = analysis.in_voicemail;
             dataToUpdate.user_sentiment = analysis.user_sentiment;
@@ -174,10 +179,21 @@ export async function POST(request: Request) {
             console.log("Analysis data:", dataToUpdate);
 
             // --- POST-CALL SMS FOLLOW-UP ---
-            // Only send if call was successful (customer engaged)
-            if (analysis.call_successful === true && insertData.customer_phone) {
+            // Send SMS if call was successful OR if user talked back (from custom_analysis_data)
+            const userTalkedBack = analysis.custom_analysis_data?.user_talked_back === true;
+            const shouldSendSms = (analysis.call_successful === true || userTalkedBack) && insertData.customer_phone;
+
+            console.log("\n🔍 DEBUG - SMS decision:");
+            console.log("   analysis.call_successful:", analysis.call_successful);
+            console.log("   analysis.custom_analysis_data:", JSON.stringify(analysis.custom_analysis_data));
+            console.log("   userTalkedBack:", userTalkedBack);
+            console.log("   insertData.customer_phone:", insertData.customer_phone);
+            console.log("   shouldSendSms:", shouldSendSms);
+
+            if (shouldSendSms) {
                 try {
                     console.log("\n📱 Sending post-call follow-up SMS...");
+                    console.log(`   Reason: call_successful=${analysis.call_successful}, user_talked_back=${userTalkedBack}`);
 
                     // Get merchant info
                     const { data: merchant } = await supabaseAdmin
@@ -195,28 +211,53 @@ export async function POST(request: Request) {
                     const businessName = merchant?.business_name || "us";
                     const bookingLink = profile?.booking_link || "our website";
 
-                    // Use Gemini to extract the main purpose/need from the call
-                    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-                    const summaryPrompt = `From this call summary, extract what the customer needs in 2-4 words. Only respond with the need, nothing else.
+                    let smsMessage: string;
+
+                    // Check if we have a valid summary to work with
+                    const hasSummary = analysis.call_summary && analysis.call_summary.trim().length > 10;
+
+                    // Detect if call was cut short (brief duration or unsuccessful)
+                    const callWasBrief = call.duration_ms && call.duration_ms < 30000; // Less than 30 seconds
+                    const callCutShort = !analysis.call_successful || callWasBrief;
+
+                    if (callCutShort) {
+                        // Call was cut short - apologize and invite them to continue via text
+                        console.log("📱 Call was cut short, sending apology message");
+                        smsMessage = `Hey! Sorry our call got cut short. Was there anything I could help you with? Feel free to text me back anytime. - ${businessName}`;
+                    } else if (hasSummary) {
+                        // Use Gemini to extract the main purpose/need from the call
+                        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+                        const summaryPrompt = `From this call summary, extract what the customer was asking about in 2-5 casual words. Do NOT use quotes, apostrophes, or dashes. Just plain words.
 
 Call summary: "${analysis.call_summary}"
 
 Examples of good responses:
-- "a haircut appointment"
-- "pricing information"
-- "booking a consultation"
-- "your services"`;
+- getting a haircut
+- your pricing
+- scheduling an appointment
+- your services
+- booking a consultation`;
 
-                    let customerNeed = "your inquiry";
-                    try {
-                        const result = await model.generateContent(summaryPrompt);
-                        customerNeed = result.response.text().trim();
-                    } catch {
-                        console.log("⚠️ AI summary failed, using default");
+                        let customerNeed = "your question";
+                        try {
+                            const result = await model.generateContent(summaryPrompt);
+                            // Clean the response - remove quotes, dashes, and extra punctuation
+                            customerNeed = result.response.text()
+                                .trim()
+                                .replace(/["'`\-—]/g, '')
+                                .replace(/^\.+|\.+$/g, '')
+                                .toLowerCase();
+                        } catch {
+                            console.log("⚠️ AI summary failed, using default");
+                        }
+
+                        // Build a conversational SMS
+                        smsMessage = `Hey! Thanks for calling ${businessName}. Happy to help with ${customerNeed}! Feel free to text me back if you have any questions. 😊`;
+                    } else {
+                        // No summary available - send friendly fallback
+                        console.log("⚠️ No summary available, using fallback SMS message");
+                        smsMessage = `Hey! Thanks for calling ${businessName}. Was there anything I could help you with? Feel free to text me back anytime!`;
                     }
-
-                    // Build the SMS
-                    const smsMessage = `Thanks for calling ${businessName}! We can definitely help you with ${customerNeed}. Book a time here: ${bookingLink}`;
 
                     // Send via Twilio
                     await twilioClient.messages.create({
