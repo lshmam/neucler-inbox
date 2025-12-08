@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
     Search, Phone, Mail, MessageSquare, CheckCircle2,
-    MoreHorizontal, Send, Mic, Clock, Loader2, Bot, Archive, Sparkles
+    MoreHorizontal, Send, Mic, Clock, Loader2, Bot, Archive, Sparkles, BookOpen
 } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -50,6 +50,7 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
     const [filter, setFilter] = useState<'needs_attention' | 'all'>('needs_attention');
     const [aiEnabled, setAiEnabled] = useState(initialAiEnabled);
     const [aiToggling, setAiToggling] = useState(false);
+    const [trainAi, setTrainAi] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     const supabase = createClient();
@@ -98,6 +99,8 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
     };
 
     const handleRealtimeMessage = (newMsg: any) => {
+        let shouldRefresh = false;
+
         // 1. Update Conversations List
         setConversations(prev => {
             const exists = prev.find(c => c.customer_id === newMsg.customer_id);
@@ -109,18 +112,23 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                     last_message_preview: newMsg.body || newMsg.content || '',
                     last_message_at: newMsg.created_at,
                     last_channel: newMsg.channel || 'sms',
-                    status: 'needs_attention', // Re-open
+                    status: newMsg.direction === 'inbound' ? 'needs_attention' : 'responded',
                     messages: [...exists.messages, newMsg]
                 };
 
                 const others = prev.filter(c => c.customer_id !== newMsg.customer_id);
                 return [updatedConvo, ...others];
             } else {
-                // New conversation - refresh to fetch customer details
-                router.refresh();
+                // New conversation - flag for refresh
+                shouldRefresh = true;
                 return prev;
             }
         });
+
+        // Refresh outside of setState to avoid React warning
+        if (shouldRefresh) {
+            setTimeout(() => router.refresh(), 0);
+        }
 
         // 2. Update Active Chat if open
         if (selectedContactRef.current?.customer_id === newMsg.customer_id) {
@@ -210,6 +218,33 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
 
             if (!res.ok) {
                 throw new Error("Failed to send");
+            }
+
+            // If Train AI is enabled, create a KB article from the Q&A
+            if (trainAi && messages.length > 0) {
+                const lastInboundMsg = [...messages].reverse().find(m => m.direction === 'inbound');
+                if (lastInboundMsg) {
+                    try {
+                        const trainRes = await fetch("/api/kb/train", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                merchantId: merchantId,
+                                customerQuestion: lastInboundMsg.content,
+                                merchantAnswer: textToSend
+                            })
+                        });
+
+                        if (trainRes.ok) {
+                            const trainData = await trainRes.json();
+                            toast.success(`📚 AI trained! Article: "${trainData.article?.title}"`);
+                            setTrainAi(false); // Reset toggle
+                        }
+                    } catch (trainError) {
+                        console.error("Train AI error:", trainError);
+                        // Don't fail the send if training fails
+                    }
+                }
             }
 
             // Success toast
@@ -466,6 +501,16 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                                 <p className="text-xs text-muted-foreground">
                                     Sending as {selectedContact.last_channel === 'email' ? 'Email' : 'SMS'}
                                 </p>
+                                <button
+                                    onClick={() => setTrainAi(!trainAi)}
+                                    className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-all
+                                        ${trainAi
+                                            ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-300'
+                                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                                >
+                                    <BookOpen className="h-3 w-3" />
+                                    <span>Train AI</span>
+                                </button>
                             </div>
                         </div>
                     </>
