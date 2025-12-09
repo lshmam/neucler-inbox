@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase";
 import crypto from "crypto";
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import twilio from "twilio";
+import { createSmartLinkServer } from "@/app/actions/links-server";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const twilioClient = twilio(
@@ -251,8 +252,25 @@ Examples of good responses:
                             console.log("⚠️ AI summary failed, using default");
                         }
 
-                        // Build a conversational SMS
-                        smsMessage = `Hey! Thanks for calling ${businessName}. Happy to help with ${customerNeed}! Feel free to text me back if you have any questions. 😊`;
+                        // Check if caller wants to book/schedule
+                        const bookingKeywords = ['book', 'schedule', 'appointment', 'consult', 'visit', 'coming in', 'reservation'];
+                        const wantsBooking = bookingKeywords.some(k => customerNeed.includes(k)) ||
+                            bookingKeywords.some(k => (analysis.call_summary || '').toLowerCase().includes(k));
+
+                        // Generate smart booking link if caller shows interest
+                        let bookingLinkText = "";
+                        if (wantsBooking) {
+                            try {
+                                const smartLink = await createSmartLinkServer(agent.merchant_id);
+                                bookingLinkText = ` Here's a link to book: ${smartLink}`;
+                                console.log(`🔗 Generated booking link for post-call SMS: ${smartLink}`);
+                            } catch (linkErr) {
+                                console.log("⚠️ Could not generate booking link:", linkErr);
+                            }
+                        }
+
+                        // Build a conversational SMS with optional booking link
+                        smsMessage = `Hey! Thanks for calling ${businessName}. Happy to help with ${customerNeed}!${bookingLinkText} Feel free to text me back if you have any questions. 😊`;
                     } else {
                         // No summary available - send friendly fallback
                         console.log("⚠️ No summary available, using fallback SMS message");

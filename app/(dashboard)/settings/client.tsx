@@ -50,6 +50,8 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
     const [phone, setPhone] = useState(profile?.support_phone || '');
     const [address, setAddress] = useState(profile?.address || '');
     const [timezone, setTimezone] = useState(profile?.timezone || 'America/Los_Angeles');
+    const [masterBookingUrl, setMasterBookingUrl] = useState(profile?.master_booking_url || '');
+    const [slug, setSlug] = useState(profile?.slug || '');
     const [businessHours, setBusinessHours] = useState<Record<string, { open: string; close: string; closed: boolean }>>({
         Monday: { open: '09:00', close: '17:00', closed: false },
         Tuesday: { open: '09:00', close: '17:00', closed: false },
@@ -112,8 +114,27 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
         fetchTeam();
     }, []);
 
-    const handleSaveGeneral = () => {
-        toast.success("General settings saved!");
+    const handleSaveGeneral = async () => {
+        try {
+            const res = await fetch('/api/settings/general', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    email,
+                    phone,
+                    address,
+                    timezone,
+                    masterBookingUrl,
+                    slug
+                })
+            });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            toast.success("Settings saved!");
+        } catch (err: any) {
+            toast.error(err.message || "Failed to save settings");
+        }
     };
 
     const handleInviteMember = async () => {
@@ -283,8 +304,50 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
                                     className="resize-none"
                                 />
                                 <p className="text-xs text-muted-foreground">
-                                    The AI uses this to answer "Where are you located?"
+                                    Used for displaying your location to customers
                                 </p>
+                            </div>
+
+                            <Separator />
+
+                            {/* Zero-Touch Booking Section */}
+                            <div className="space-y-4">
+                                <div>
+                                    <h4 className="font-semibold flex items-center gap-2">
+                                        <Calendar className="h-4 w-4 text-green-500" />
+                                        Zero-Touch Booking
+                                    </h4>
+                                    <p className="text-xs text-muted-foreground">
+                                        Configure your master booking URL for automatic link generation
+                                    </p>
+                                </div>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="space-y-2">
+                                        <Label>Master Booking URL</Label>
+                                        <Input
+                                            value={masterBookingUrl}
+                                            onChange={(e) => setMasterBookingUrl(e.target.value)}
+                                            placeholder="https://calendly.com/your-business"
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            Your Calendly, Cal.com, or booking page URL
+                                        </p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Branded URL Slug</Label>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm text-muted-foreground whitespace-nowrap">yourapp.com/go/</span>
+                                            <Input
+                                                value={slug}
+                                                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                                                placeholder="your-business"
+                                            />
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Creates trackable short links like /go/{slug}/abc123
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
 
                             <Separator />
@@ -800,7 +863,7 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
                         </CardContent>
                     </Card>
                 </TabsContent>
-            </Tabs>
-        </div>
+            </Tabs >
+        </div >
     );
 }

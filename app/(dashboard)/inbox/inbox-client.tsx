@@ -5,7 +5,7 @@ import { formatDistanceToNow } from "date-fns";
 import {
     Search, Phone, Mail, MessageSquare, CheckCircle2,
     MoreHorizontal, Send, Mic, Clock, Loader2, Bot, Archive, Sparkles, BookOpen,
-    Pencil, Check, X, Plus, Link2, ChevronDown, ChevronUp, ExternalLink, Copy
+    Pencil, Check, X, Plus, Link2, ChevronDown, ChevronUp, ExternalLink, Copy, CalendarPlus
 } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -28,6 +28,7 @@ import { CustomerSheet } from "@/components/customers/customer-sheet";
 import { createClient } from "@/lib/supabase-client";
 import { useRouter } from "next/navigation";
 import { toggleAutomation } from "@/app/actions/automations";
+import { createSmartLink } from "@/app/actions/links";
 
 // --- TYPES ---
 interface Conversation {
@@ -354,6 +355,7 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
     const [aiEnabled, setAiEnabled] = useState(initialAiEnabled);
     const [aiToggling, setAiToggling] = useState(false);
     const [trainAi, setTrainAi] = useState(false);
+    const [isGeneratingLink, setIsGeneratingLink] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     const supabase = createClient();
@@ -804,16 +806,44 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                                 <p className="text-xs text-muted-foreground">
                                     Sending as {selectedContact.last_channel === 'email' ? 'Email' : 'SMS'}
                                 </p>
-                                <button
-                                    onClick={() => setTrainAi(!trainAi)}
-                                    className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-all
-                                        ${trainAi
-                                            ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-300'
-                                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                                >
-                                    <BookOpen className="h-3 w-3" />
-                                    <span>Train AI</span>
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={async () => {
+                                            if (!selectedContact) return;
+                                            setIsGeneratingLink(true);
+                                            try {
+                                                const link = await createSmartLink({ contactId: selectedContact.customer_id });
+                                                if (selectedContact.last_channel === 'email') {
+                                                    // Email mode: Insert anchor tag
+                                                    setNewMessage(prev => prev + `\n\nBook your appointment: ${link}`);
+                                                } else {
+                                                    // SMS mode: Append URL
+                                                    setNewMessage(prev => prev + (prev ? ' ' : '') + link);
+                                                }
+                                                toast.success('Booking link added!');
+                                            } catch (err: any) {
+                                                toast.error(err.message || 'Failed to generate link');
+                                            } finally {
+                                                setIsGeneratingLink(false);
+                                            }
+                                        }}
+                                        disabled={isGeneratingLink}
+                                        className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-all bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-50"
+                                    >
+                                        {isGeneratingLink ? <Loader2 className="h-3 w-3 animate-spin" /> : <CalendarPlus className="h-3 w-3" />}
+                                        <span>Quick Book</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setTrainAi(!trainAi)}
+                                        className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-all
+                                            ${trainAi
+                                                ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-300'
+                                                : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                                    >
+                                        <BookOpen className="h-3 w-3" />
+                                        <span>Train AI</span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </>

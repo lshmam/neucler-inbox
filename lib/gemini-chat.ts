@@ -155,7 +155,8 @@ export async function generateAIReply(
     merchantId: string,
     customerMessage: string,
     conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [],
-    channel: 'sms' | 'email' | 'widget' = 'sms'
+    channel: 'sms' | 'email' | 'widget' = 'sms',
+    customerId?: string
 ): Promise<AIReplyResult> {
     try {
         // 1. Check usage limit
@@ -199,6 +200,11 @@ YOUR PERSONALITY:
 - Use contractions (I'm, we're, you'll) to sound natural
 - ${channelInstructions[channel]}
 
+BOOKING LINKS:
+- If the customer wants to schedule, book, or make an appointment, include the text: {{BOOKING_LINK}}
+- Example: "Sure! Here's a link to book: {{BOOKING_LINK}}"
+- Do NOT make up a URL. Only use the placeholder.
+
 Remember: Sound like a helpful human, not an AI reading from a script.`;
 
         // 4. Build messages
@@ -223,7 +229,21 @@ Remember: Sound like a helpful human, not an AI reading from a script.`;
 
         // 5. Generate reply
         const result = await chat.sendMessage(customerMessage);
-        const reply = result.response.text();
+        let reply = result.response.text();
+
+        // 5b. Process {{BOOKING_LINK}} placeholder
+        if (reply.includes('{{BOOKING_LINK}}')) {
+            try {
+                const { createSmartLinkServer } = await import('@/app/actions/links-server');
+                const bookingUrl = await createSmartLinkServer(merchantId, customerId);
+                reply = reply.replace(/\{\{BOOKING_LINK\}\}/g, bookingUrl);
+                console.log(`🔗 [AI Reply] Replaced booking placeholder with: ${bookingUrl}`);
+            } catch (linkError) {
+                console.error('❌ [AI Reply] Failed to generate booking link:', linkError);
+                // Remove placeholder if we can't generate link
+                reply = reply.replace(/\{\{BOOKING_LINK\}\}/g, '');
+            }
+        }
 
         // 6. Increment usage
         await incrementUsage(merchantId);
