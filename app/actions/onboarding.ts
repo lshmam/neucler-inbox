@@ -44,6 +44,16 @@ export async function saveOnboardingData(data: OnboardingData) {
     }
     console.log("✅ [Onboarding] Merchant created/updated");
 
+    // 2b. Auto-create team_members owner record
+    await supabaseAdmin
+        .from('team_members')
+        .upsert({
+            merchant_id: user.id,
+            user_id: user.id,
+            role: 'owner'
+        }, { onConflict: 'merchant_id,user_id' });
+    console.log("✅ [Onboarding] Team owner record created");
+
     // 3. Insert into BUSINESS_PROFILES table
     // Using user.id as the merchant_id so dashboard can find it
     const { error: profileError } = await supabaseAdmin

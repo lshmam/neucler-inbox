@@ -19,7 +19,9 @@ import {
     Settings,
     LogOut,
     ChevronDown,
-    User
+    User,
+    Megaphone,
+    Users2
 } from "lucide-react";
 
 const NAV_SECTIONS = [
@@ -27,39 +29,24 @@ const NAV_SECTIONS = [
         title: "Overview",
         items: [
             { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-            { label: "Analytics", href: "/analytics", icon: TrendingUp },
-            { label: "Customers", href: "/customers", icon: User },
+            // { label: "Analytics", href: "/analytics", icon: TrendingUp },
             { label: "Inbox", href: "/inbox", icon: MessageSquare },
+            { label: "Customers", href: "/customers", icon: User },
         ]
     },
     {
         title: "Growth",
         items: [
-            // { label: "Communications", href: "/communications", icon: MessageSquare },
-            { label: "SMS", href: "/sms", icon: Smartphone },
-            { label: "Email", href: "/email", icon: Mail },
-            { label: "Calls", href: "/ai-agent", icon: Bot },
-            { label: "Site Widgets", href: "/site-widgets", icon: Globe },
-        ]
-    },
-    {
-        title: "Retention",
-        items: [
-            { label: "Reputation", href: "/reviews", icon: Star },
-            // { label: "Loyalty", href: "/loyalty", icon: Trophy },
-        ]
-    },
-    {
-        title: "Automation",
-        items: [
+            { label: "Marketing", href: "/marketing", icon: Megaphone },
+            { label: "AI Agent", href: "/ai-agent", icon: Bot },
             { label: "Automations", href: "/automations", icon: Zap },
+            { label: "Reputation", href: "/reviews", icon: Star },
         ]
     },
     {
         title: "Account",
         items: [
-            { label: "Usage", href: "/usage", icon: TrendingUp },
-            { label: "Subscription", href: "/subscription", icon: CreditCard },
+            { label: "Billing", href: "/billing", icon: CreditCard },
             { label: "Settings", href: "/settings", icon: Settings },
         ]
     }

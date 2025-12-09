@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
     Search, Phone, Mail, MessageSquare, CheckCircle2,
-    MoreHorizontal, Send, Mic, Clock, Loader2, Bot, Archive, Sparkles, BookOpen
+    MoreHorizontal, Send, Mic, Clock, Loader2, Bot, Archive, Sparkles, BookOpen,
+    Pencil, Check, X, Plus, Link2, ChevronDown, ChevronUp, ExternalLink, Copy
 } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -16,6 +17,14 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import {
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from "@/components/ui/select";
+import {
+    Collapsible, CollapsibleContent, CollapsibleTrigger
+} from "@/components/ui/collapsible";
+import { CustomerSheet } from "@/components/customers/customer-sheet";
 import { createClient } from "@/lib/supabase-client";
 import { useRouter } from "next/navigation";
 import { toggleAutomation } from "@/app/actions/automations";
@@ -39,7 +48,301 @@ interface InboxClientProps {
     isAiEnabled: boolean;
 }
 
-// --- COMPONENT ---
+// --- LEAD CONTEXT PANEL COMPONENT ---
+interface LeadContextPanelProps {
+    contact: Conversation;
+    merchantId: string;
+    onUpdate: (updates: Partial<Conversation>) => void;
+}
+
+function LeadContextPanel({ contact, merchantId, onUpdate }: LeadContextPanelProps) {
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [editedName, setEditedName] = useState(contact.display_name);
+    const [status, setStatus] = useState(contact.status || 'new_lead');
+    const [notes, setNotes] = useState('');
+    const [newTag, setNewTag] = useState('');
+    const [localTags, setLocalTags] = useState<string[]>(contact.tags || []);
+    const [contactOpen, setContactOpen] = useState(false);
+    const [isSheetOpen, setIsSheetOpen] = useState(false);
+    const [customerData, setCustomerData] = useState<any>(null);
+
+    const supabase = createClient();
+
+    // Load customer data for sheet
+    useEffect(() => {
+        if (contact.customer_id) {
+            supabase
+                .from('customers')
+                .select('*')
+                .eq('id', contact.customer_id)
+                .single()
+                .then(({ data }) => {
+                    if (data) {
+                        setCustomerData(data);
+                        setNotes(data.notes || '');
+                        setLocalTags(data.tags || contact.tags || []);
+                        setStatus(data.status || contact.status || 'new_lead');
+                    }
+                });
+        }
+    }, [contact.customer_id]);
+
+    const handleSaveName = async () => {
+        if (!editedName.trim()) return;
+
+        // Parse first/last name
+        const parts = editedName.trim().split(' ');
+        const firstName = parts[0] || '';
+        const lastName = parts.slice(1).join(' ') || '';
+
+        const { error } = await supabase
+            .from('customers')
+            .update({ first_name: firstName, last_name: lastName })
+            .eq('id', contact.customer_id);
+
+        if (!error) {
+            onUpdate({ display_name: editedName });
+            toast.success('Name updated');
+        } else {
+            toast.error('Failed to update name');
+        }
+        setIsEditingName(false);
+    };
+
+    const handleStatusChange = async (newStatus: string) => {
+        setStatus(newStatus);
+
+        const { error } = await supabase
+            .from('customers')
+            .update({ status: newStatus })
+            .eq('id', contact.customer_id);
+
+        if (!error) {
+            onUpdate({ status: newStatus });
+            toast.success('Status updated');
+        } else {
+            toast.error('Failed to update status');
+        }
+    };
+
+    const handleNotesBlur = async () => {
+        const { error } = await supabase
+            .from('customers')
+            .update({ notes })
+            .eq('id', contact.customer_id);
+
+        if (!error) {
+            toast.success('Notes saved');
+        }
+    };
+
+    const handleAddTag = async () => {
+        if (!newTag.trim() || localTags.includes(newTag.trim())) return;
+
+        const updatedTags = [...localTags, newTag.trim()];
+        setLocalTags(updatedTags);
+        setNewTag('');
+
+        const { error } = await supabase
+            .from('customers')
+            .update({ tags: updatedTags })
+            .eq('id', contact.customer_id);
+
+        if (!error) {
+            onUpdate({ tags: updatedTags });
+        }
+    };
+
+    const handleRemoveTag = async (tag: string) => {
+        const updatedTags = localTags.filter(t => t !== tag);
+        setLocalTags(updatedTags);
+
+        const { error } = await supabase
+            .from('customers')
+            .update({ tags: updatedTags })
+            .eq('id', contact.customer_id);
+
+        if (!error) {
+            onUpdate({ tags: updatedTags });
+        }
+    };
+
+    const handleCopyBookingLink = () => {
+        const bookingUrl = `${window.location.origin}/book/${merchantId}`;
+        navigator.clipboard.writeText(bookingUrl);
+        toast.success('Booking link copied!');
+    };
+
+    const getStatusConfig = (s: string) => {
+        switch (s) {
+            case 'new_lead': return { label: '🔵 New Lead', color: 'bg-blue-50 text-blue-700 border-blue-200' };
+            case 'conversation': return { label: '🟡 Conversation', color: 'bg-yellow-50 text-yellow-700 border-yellow-200' };
+            case 'booked': return { label: '🟢 Booked', color: 'bg-green-50 text-green-700 border-green-200' };
+            case 'lost': return { label: '🔴 Lost/Ghosting', color: 'bg-red-50 text-red-700 border-red-200' };
+            default: return { label: '🔵 New Lead', color: 'bg-blue-50 text-blue-700 border-blue-200' };
+        }
+    };
+
+    const isUnknownCaller = contact.display_name.toLowerCase().includes('unknown') ||
+        contact.display_name.match(/^\+?[0-9\s-]+$/);
+
+    return (
+        <div className="w-[300px] border-l bg-white hidden xl:flex flex-col shrink-0 h-full">
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+
+                {/* HEADER: Editable Identity */}
+                <div className="text-center">
+                    <Avatar className="h-16 w-16 mx-auto mb-3">
+                        <AvatarFallback className="text-lg bg-gradient-to-br from-[#906CDD] to-[#7a5bb5] text-white font-bold">
+                            {contact.display_name[0]?.toUpperCase() || '?'}
+                        </AvatarFallback>
+                    </Avatar>
+
+                    {isEditingName ? (
+                        <div className="flex items-center justify-center gap-1">
+                            <Input
+                                value={editedName}
+                                onChange={(e) => setEditedName(e.target.value)}
+                                className="h-8 text-center font-bold w-40"
+                                autoFocus
+                                onKeyDown={(e) => e.key === 'Enter' && handleSaveName()}
+                            />
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleSaveName}>
+                                <Check className="h-4 w-4 text-green-600" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setIsEditingName(false)}>
+                                <X className="h-4 w-4 text-red-500" />
+                            </Button>
+                        </div>
+                    ) : (
+                        <div className="flex items-center justify-center gap-1">
+                            <h2 className="font-bold text-lg">{contact.display_name}</h2>
+                            {isUnknownCaller && (
+                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => {
+                                    setEditedName(contact.display_name);
+                                    setIsEditingName(true);
+                                }}>
+                                    <Pencil className="h-3 w-3 text-slate-400" />
+                                </Button>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Collapsible Contact Details */}
+                    <Collapsible open={contactOpen} onOpenChange={setContactOpen}>
+                        <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="sm" className="text-xs text-muted-foreground h-6 mt-1">
+                                {contact.contact_point}
+                                {contactOpen ? <ChevronUp className="h-3 w-3 ml-1" /> : <ChevronDown className="h-3 w-3 ml-1" />}
+                            </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-2 space-y-1 text-xs text-muted-foreground">
+                            <div className="flex items-center justify-center gap-2">
+                                <Phone className="h-3 w-3" />
+                                <span>{contact.contact_point}</span>
+                            </div>
+                            {customerData?.email && (
+                                <div className="flex items-center justify-center gap-2">
+                                    <Mail className="h-3 w-3" />
+                                    <span>{customerData.email}</span>
+                                </div>
+                            )}
+                        </CollapsibleContent>
+                    </Collapsible>
+                </div>
+
+                {/* STATUS DROPDOWN */}
+                <div>
+                    <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Lead Status</h4>
+                    <Select value={status} onValueChange={handleStatusChange}>
+                        <SelectTrigger className={`w-full h-9 text-sm font-medium ${getStatusConfig(status).color}`}>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="new_lead">🔵 New Lead</SelectItem>
+                            <SelectItem value="conversation">🟡 Conversation</SelectItem>
+                            <SelectItem value="booked">🟢 Booked</SelectItem>
+                            <SelectItem value="lost">🔴 Lost/Ghosting</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {/* COPY BOOKING LINK */}
+                <Button
+                    variant="outline"
+                    className="w-full gap-2 border-dashed"
+                    onClick={handleCopyBookingLink}
+                >
+                    <Copy className="h-4 w-4" />
+                    Copy Booking Link
+                </Button>
+
+                {/* QUICK NOTE */}
+                <div>
+                    <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Internal Notes</h4>
+                    <Textarea
+                        placeholder="Add quick notes... (auto-saves)"
+                        className="min-h-[80px] text-sm bg-amber-50/50 border-amber-100 resize-none"
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        onBlur={handleNotesBlur}
+                    />
+                </div>
+
+                {/* RAPID TAGGING */}
+                <div>
+                    <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tags</h4>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                        {localTags.map((tag, i) => (
+                            <Badge
+                                key={i}
+                                variant="secondary"
+                                className="pl-2 pr-1 py-0.5 text-xs flex items-center gap-1 cursor-pointer hover:bg-slate-200"
+                                onClick={() => handleRemoveTag(tag)}
+                            >
+                                {tag}
+                                <X className="h-3 w-3" />
+                            </Badge>
+                        ))}
+                    </div>
+                    <div className="flex gap-1">
+                        <Input
+                            placeholder="Add tag..."
+                            value={newTag}
+                            onChange={(e) => setNewTag(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
+                            className="h-8 text-sm"
+                        />
+                        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={handleAddTag}>
+                            <Plus className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </div>
+            </div>
+
+            {/* VIEW FULL PROFILE BUTTON */}
+            <div className="p-4 border-t">
+                <Button
+                    variant="outline"
+                    className="w-full gap-2"
+                    onClick={() => setIsSheetOpen(true)}
+                >
+                    <ExternalLink className="h-4 w-4" />
+                    View Full Profile →
+                </Button>
+            </div>
+
+            {/* CUSTOMER SHEET */}
+            <CustomerSheet
+                customer={customerData}
+                isOpen={isSheetOpen}
+                onClose={() => setIsSheetOpen(false)}
+            />
+        </div>
+    );
+}
+
+// --- MAIN COMPONENT ---
 
 export function InboxClient({ initialConversations, merchantId, isAiEnabled: initialAiEnabled }: InboxClientProps) {
     const [conversations, setConversations] = useState(initialConversations);
@@ -524,44 +827,21 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                 )}
             </div>
 
-            {/* --- COLUMN 3: CRM PROFILE --- */}
+            {/* --- COLUMN 3: LEAD CONTEXT PANEL --- */}
             {selectedContact && (
-                <div className="w-[300px] border-l bg-white p-6 hidden xl:block shrink-0">
-                    <div className="text-center mb-6">
-                        <Avatar className="h-20 w-20 mx-auto mb-3">
-                            <AvatarFallback className="text-xl bg-slate-100">{selectedContact.display_name[0]}</AvatarFallback>
-                        </Avatar>
-                        <h2 className="font-bold text-lg">{selectedContact.display_name}</h2>
-                        <Badge variant="outline" className="mt-2 bg-green-50 text-green-700 border-green-200">Active Customer</Badge>
-                    </div>
-
-                    <Separator className="my-6" />
-
-                    <div className="space-y-6">
-                        <div>
-                            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Contact Info</h4>
-                            <div className="space-y-3">
-                                <div className="flex items-center gap-3 text-sm">
-                                    <Phone className="h-4 w-4 text-slate-400" />
-                                    <span>{selectedContact.contact_point}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Tags</h4>
-                            <div className="flex flex-wrap gap-2">
-                                {selectedContact.tags.length > 0 ? (
-                                    selectedContact.tags.map((tag: string) => (
-                                        <Badge key={tag} variant="secondary">{tag}</Badge>
-                                    ))
-                                ) : (
-                                    <p className="text-sm text-muted-foreground">No tags</p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <LeadContextPanel
+                    contact={selectedContact}
+                    merchantId={merchantId}
+                    onUpdate={(updates) => {
+                        // Update local state
+                        setConversations(prev => prev.map(c =>
+                            c.customer_id === selectedContact.customer_id
+                                ? { ...c, ...updates }
+                                : c
+                        ));
+                        setSelectedContact(prev => prev ? { ...prev, ...updates } : null);
+                    }}
+                />
             )}
 
         </div>
