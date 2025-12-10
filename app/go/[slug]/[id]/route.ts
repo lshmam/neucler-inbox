@@ -34,13 +34,18 @@ export async function GET(
         }
 
         // 2. Update clicked_at (fire-and-forget)
-        supabaseAdmin
-            .from("smart_links")
-            .update({ clicked_at: new Date().toISOString() })
-            .eq("id", id)
-            .is("clicked_at", null)
-            .then(() => console.log(`[Smart Link] ✅ Click tracked for ${id}`))
-            .catch((err) => console.error(`[Smart Link] Track error:`, err));
+        (async () => {
+            try {
+                await supabaseAdmin
+                    .from("smart_links")
+                    .update({ clicked_at: new Date().toISOString() })
+                    .eq("id", id)
+                    .is("clicked_at", null);
+                console.log(`[Smart Link] ✅ Click tracked for ${id}`);
+            } catch (err) {
+                console.error(`[Smart Link] Track error:`, err);
+            }
+        })();
 
         // 3. Redirect to the target URL
         console.log(`[Smart Link] ✅ Redirecting to: ${link.target_url}`);
