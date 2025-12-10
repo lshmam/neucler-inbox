@@ -99,13 +99,13 @@ export function EmailClientView({ initialCampaigns, merchantId }: EmailPageProps
     };
 
     return (
-        <div className="flex-1 space-y-6 p-8 pt-6">
+        <div className="flex-1 space-y-6 p-6">
 
-            {/* HEADER */}
+            {/* HEADER - Compact */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Email Marketing</h2>
-                    <p className="text-muted-foreground">Real-time performance metrics.</p>
+                    <h2 className="text-2xl font-bold tracking-tight">Email Marketing</h2>
+                    <p className="text-muted-foreground text-sm">Real-time performance metrics</p>
                 </div>
                 <Button asChild>
                     <Link href="/email/new">

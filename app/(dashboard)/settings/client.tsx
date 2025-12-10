@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,7 @@ const TIMEZONES = [
 
 export function SettingsClient({ merchantId, businessName, profile }: SettingsClientProps) {
     // General state
-    const [logo, setLogo] = useState<string | null>(null);
+    const [logo, setLogo] = useState<string | null>(profile?.logo_url || null);
     const [name, setName] = useState(businessName || '');
     const [email, setEmail] = useState(profile?.support_email || '');
     const [phone, setPhone] = useState(profile?.support_phone || '');
@@ -83,17 +84,18 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
     const [notifyMissedCall, setNotifyMissedCall] = useState(true);
     const [notifyDailySummary, setNotifyDailySummary] = useState(false);
     const [notifyEmail, setNotifyEmail] = useState('');
+    const [savingGeneral, setSavingGeneral] = useState(false);
 
     // Integration state
     const [calendarConnected, setCalendarConnected] = useState(false);
-    const [incomingWebhook] = useState(`https://api.yourapp.com/webhooks/${merchantId}/incoming`);
+    const [incomingWebhook] = useState(`https://api.neucler.com/webhooks/${merchantId}/incoming`);
     const [outgoingWebhook, setOutgoingWebhook] = useState('');
 
     // Widget state
     const [widgetColor, setWidgetColor] = useState('#906CDD');
     const [widgetGreeting, setWidgetGreeting] = useState('Hi! Text us here');
     const [widgetIcon, setWidgetIcon] = useState('chat');
-    const widgetCode = `<script src="https://cdn.yourapp.com/widget.js" data-merchant="${merchantId}" data-color="${widgetColor}"></script>`;
+    const widgetCode = `<script src="https://cdn.neucler.com/widget.js" data-merchant="${merchantId}" data-color="${widgetColor}"></script>`;
 
     // Fetch team data
     const fetchTeam = async () => {
@@ -114,7 +116,10 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
         fetchTeam();
     }, []);
 
+    const router = useRouter();
+
     const handleSaveGeneral = async () => {
+        setSavingGeneral(true);
         try {
             const res = await fetch('/api/settings/general', {
                 method: 'POST',
@@ -126,14 +131,19 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
                     address,
                     timezone,
                     masterBookingUrl,
-                    slug
+                    slug,
+                    logo
                 })
             });
             const data = await res.json();
             if (data.error) throw new Error(data.error);
             toast.success("Settings saved!");
+            // Refresh to update sidebar branding
+            router.refresh();
         } catch (err: any) {
             toast.error(err.message || "Failed to save settings");
+        } finally {
+            setSavingGeneral(false);
         }
     };
 
@@ -204,7 +214,7 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
             </div>
 
             <Tabs defaultValue="general" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+                <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
                     <TabsTrigger value="general" className="gap-2">
                         <Building2 className="h-4 w-4" /> General
                     </TabsTrigger>
@@ -214,9 +224,9 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
                     <TabsTrigger value="notifications" className="gap-2">
                         <Bell className="h-4 w-4" /> Notifications
                     </TabsTrigger>
-                    <TabsTrigger value="integrations" className="gap-2">
+                    {/* <TabsTrigger value="integrations" className="gap-2">
                         <Puzzle className="h-4 w-4" /> Integrations
-                    </TabsTrigger>
+                    </TabsTrigger> */}
                     <TabsTrigger value="widget" className="gap-2">
                         <Globe className="h-4 w-4" /> Site Widget
                     </TabsTrigger>
@@ -248,9 +258,45 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
                                 </Avatar>
                                 <div className="space-y-2">
                                     <Label>Logo</Label>
-                                    <Button variant="outline" size="sm">
-                                        <Upload className="mr-2 h-4 w-4" /> Upload Image
-                                    </Button>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="file"
+                                            id="logo-upload"
+                                            accept="image/png,image/jpeg,image/jpg"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    if (file.size > 2 * 1024 * 1024) {
+                                                        toast.error("File size must be under 2MB");
+                                                        return;
+                                                    }
+                                                    const reader = new FileReader();
+                                                    reader.onloadend = () => {
+                                                        setLogo(reader.result as string);
+                                                    };
+                                                    reader.readAsDataURL(file);
+                                                }
+                                            }}
+                                        />
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => document.getElementById('logo-upload')?.click()}
+                                        >
+                                            <Upload className="mr-2 h-4 w-4" /> Upload Image
+                                        </Button>
+                                        {logo && (
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => setLogo(null)}
+                                                className="text-red-500 hover:text-red-700"
+                                            >
+                                                Remove
+                                            </Button>
+                                        )}
+                                    </div>
                                     <p className="text-xs text-muted-foreground">PNG, JPG up to 2MB</p>
                                 </div>
                             </div>
@@ -258,38 +304,9 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
                             <Separator />
 
                             {/* Business Details */}
-                            <div className="grid gap-4 md:grid-cols-2">
-                                <div className="space-y-2">
-                                    <Label>Business Name</Label>
-                                    <Input value={name} onChange={(e) => setName(e.target.value)} />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Support Email</Label>
-                                    <div className="relative">
-                                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                        <Input className="pl-10" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="support@example.com" />
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Support Phone</Label>
-                                    <div className="relative">
-                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                        <Input className="pl-10" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" />
-                                    </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Timezone</Label>
-                                    <Select value={timezone} onValueChange={setTimezone}>
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {TIMEZONES.map(tz => (
-                                                <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+                            <div className="space-y-2">
+                                <Label>Business Name</Label>
+                                <Input value={name} onChange={(e) => setName(e.target.value)} />
                             </div>
 
                             {/* Physical Address */}
@@ -336,7 +353,7 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
                                     <div className="space-y-2">
                                         <Label>Branded URL Slug</Label>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-sm text-muted-foreground whitespace-nowrap">yourapp.com/go/</span>
+                                            <span className="text-sm text-muted-foreground whitespace-nowrap">neucler.com/go/</span>
                                             <Input
                                                 value={slug}
                                                 onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
@@ -407,8 +424,9 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
                             </div>
 
                             <div className="flex justify-end">
-                                <Button onClick={handleSaveGeneral} className="bg-[#906CDD] hover:bg-[#7a5bb5]">
-                                    Save Changes
+                                <Button onClick={handleSaveGeneral} disabled={savingGeneral} className="bg-[#906CDD] hover:bg-[#7a5bb5]">
+                                    {savingGeneral && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    {savingGeneral ? "Saving..." : "Save Changes"}
                                 </Button>
                             </div>
                         </CardContent>

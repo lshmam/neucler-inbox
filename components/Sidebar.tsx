@@ -40,7 +40,7 @@ const NAV_SECTIONS = [
             { label: "Marketing", href: "/marketing", icon: Megaphone },
             { label: "AI Agent", href: "/ai-agent", icon: Bot },
             { label: "Automations", href: "/automations", icon: Zap },
-            { label: "Reputation", href: "/reviews", icon: Star },
+            // { label: "Reputation", href: "/reviews", icon: Star },
         ]
     },
     {

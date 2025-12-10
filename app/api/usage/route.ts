@@ -68,17 +68,19 @@ export async function GET(request: Request) {
         const SMS_BASE_COST = 0.0079;
         const EMAIL_BASE_COST = 0.0008;
         const TOKEN_BASE_COST = 0.00000015; // Blended input/output for GPT-4o-mini approx
+        const CALL_COST_PER_MINUTE = 0.50; // $0.50 per minute (matching AI Agent page)
 
-        // Process Calls
+        // Process Calls - Calculate from duration (same as AI Agent page)
         calls.forEach(call => {
             const day = getDay(call.created_at);
             initDay(day);
 
-            // Cost is already in cents in DB, convert to dollars
-            const baseCost = (call.cost_cents || 0) / 100;
-            const finalCost = baseCost * MARGIN_MULTIPLIER;
+            // Calculate cost from duration: $0.50 per minute
+            const durationMinutes = (call.duration_seconds || 0) / 60;
+            const baseCost = durationMinutes * CALL_COST_PER_MINUTE;
+            // Note: No additional margin since $0.50/min is already the customer-facing rate
 
-            dailyUsage[day].calls_cost += finalCost;
+            dailyUsage[day].calls_cost += baseCost;
             dailyUsage[day].calls_count += 1;
         });
 

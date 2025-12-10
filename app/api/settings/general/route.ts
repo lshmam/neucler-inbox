@@ -35,7 +35,7 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json();
-        const { name, masterBookingUrl, slug } = body;
+        const { name, masterBookingUrl, slug, logo } = body;
 
         // Update merchants table (business name)
         if (name) {
@@ -45,13 +45,20 @@ export async function POST(request: Request) {
                 .eq("platform_merchant_id", merchantId);
         }
 
-        // Update business_profiles table - only booking fields
+        // Update business_profiles table - booking fields and logo
+        const updateData: Record<string, any> = {
+            master_booking_url: masterBookingUrl || null,
+            slug: slug || null
+        };
+
+        // Only include logo if it was provided (could be base64 or null to remove)
+        if (logo !== undefined) {
+            updateData.logo_url = logo;
+        }
+
         const { error: profileError } = await supabaseAdmin
             .from("business_profiles")
-            .update({
-                master_booking_url: masterBookingUrl || null,
-                slug: slug || null
-            })
+            .update(updateData)
             .eq("merchant_id", merchantId);
 
         if (profileError) {

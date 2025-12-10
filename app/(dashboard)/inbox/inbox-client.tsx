@@ -54,9 +54,11 @@ interface LeadContextPanelProps {
     contact: Conversation;
     merchantId: string;
     onUpdate: (updates: Partial<Conversation>) => void;
+    onResolve: () => void;
+    messages: any[];
 }
 
-function LeadContextPanel({ contact, merchantId, onUpdate }: LeadContextPanelProps) {
+function LeadContextPanel({ contact, merchantId, onUpdate, onResolve, messages }: LeadContextPanelProps) {
     const [isEditingName, setIsEditingName] = useState(false);
     const [editedName, setEditedName] = useState(contact.display_name);
     const [status, setStatus] = useState(contact.status || 'new_lead');
@@ -66,6 +68,7 @@ function LeadContextPanel({ contact, merchantId, onUpdate }: LeadContextPanelPro
     const [contactOpen, setContactOpen] = useState(false);
     const [isSheetOpen, setIsSheetOpen] = useState(false);
     const [customerData, setCustomerData] = useState<any>(null);
+    const [isTraining, setIsTraining] = useState(false);
 
     const supabase = createClient();
 
@@ -321,8 +324,69 @@ function LeadContextPanel({ contact, merchantId, onUpdate }: LeadContextPanelPro
                 </div>
             </div>
 
-            {/* VIEW FULL PROFILE BUTTON */}
-            <div className="p-4 border-t">
+            {/* ACTION BUTTONS */}
+            <div className="p-4 border-t space-y-2">
+                {/* RESOLVE BUTTON */}
+                <Button
+                    className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white"
+                    onClick={onResolve}
+                >
+                    <CheckCircle2 className="h-4 w-4" />
+                    Resolve Conversation
+                </Button>
+
+                {/* TRAIN AI BUTTON */}
+                <Button
+                    variant="outline"
+                    className="w-full gap-2 border-purple-200 text-purple-700 hover:bg-purple-50"
+                    onClick={async () => {
+                        // Find last inbound and outbound messages
+                        const sortedMsgs = [...messages].sort((a, b) =>
+                            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                        );
+                        const lastInbound = [...sortedMsgs].reverse().find(m => m.direction === 'inbound');
+                        const lastOutbound = [...sortedMsgs].reverse().find(m => m.direction === 'outbound');
+
+                        if (!lastInbound || !lastOutbound) {
+                            toast.error("Need both a customer question and your reply to train AI");
+                            return;
+                        }
+
+                        setIsTraining(true);
+                        try {
+                            const res = await fetch("/api/kb/train", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    merchantId,
+                                    customerQuestion: lastInbound.content || lastInbound.body,
+                                    merchantAnswer: lastOutbound.content || lastOutbound.body
+                                })
+                            });
+
+                            if (res.ok) {
+                                const data = await res.json();
+                                toast.success(`📚 AI trained! Article: "${data.article?.title}"`);
+                            } else {
+                                throw new Error("Failed to train");
+                            }
+                        } catch (error) {
+                            toast.error("Failed to train AI");
+                        } finally {
+                            setIsTraining(false);
+                        }
+                    }}
+                    disabled={isTraining}
+                >
+                    {isTraining ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                        <BookOpen className="h-4 w-4" />
+                    )}
+                    Train AI on Response
+                </Button>
+
+                {/* VIEW FULL PROFILE BUTTON */}
                 <Button
                     variant="outline"
                     className="w-full gap-2"
@@ -453,7 +517,17 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
 
     // Filter conversations
     const filteredConversations = conversations.filter(c => {
-        if (filter === 'needs_attention') return c.status === 'needs_attention';
+        if (filter === 'needs_attention') {
+            // Don't show resolved conversations in Needs Attention
+            if (c.status === 'resolved') return false;
+
+            // Show in Needs Attention if:
+            // 1. Status is needs_attention
+            // 2. Has the 'needs_human' tag (AI handed off)
+            return c.status === 'needs_attention' ||
+                c.tags?.includes('needs_human');
+        }
+        // All Messages shows everything
         return true;
     });
 
@@ -567,16 +641,60 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
         }
     };
 
-    const handleResolve = () => {
+    const handleResolve = async () => {
         if (!selectedContact) return;
 
+        // Update local state immediately
         setConversations(prev => prev.map(c =>
             c.customer_id === selectedContact.customer_id
-                ? { ...c, status: 'resolved' }
+                ? { ...c, status: 'resolved', tags: c.tags?.filter(t => t !== 'needs_human') || [] }
                 : c
         ));
 
-        toast.success("Conversation resolved");
+        // Persist to database - update customer status and remove needs_human tag
+        try {
+            // Try to find customer by ID first, then by phone/email
+            let { data: customer } = await supabase
+                .from('customers')
+                .select('id, tags')
+                .eq('id', selectedContact.customer_id)
+                .single();
+
+            // If not found by ID, try by phone number or email
+            if (!customer) {
+                const { data: customerByContact } = await supabase
+                    .from('customers')
+                    .select('id, tags')
+                    .or(`phone_number.eq.${selectedContact.contact_point},email.eq.${selectedContact.contact_point}`)
+                    .single();
+                customer = customerByContact;
+            }
+
+            if (customer) {
+                const currentTags = customer.tags || [];
+                const updatedTags = currentTags.filter((t: string) => t !== 'needs_human');
+
+                const { error } = await supabase
+                    .from('customers')
+                    .update({
+                        status: 'resolved',
+                        tags: updatedTags
+                    })
+                    .eq('id', customer.id);
+
+                if (error) {
+                    console.error("Update error:", error);
+                } else {
+                    toast.success("Conversation resolved");
+                }
+            } else {
+                console.log("No customer found for:", selectedContact.customer_id, selectedContact.contact_point);
+                toast.success("Conversation resolved locally");
+            }
+        } catch (error) {
+            console.error("Failed to persist resolve status:", error);
+            toast.success("Conversation resolved locally");
+        }
 
         if (filter === 'needs_attention') {
             setSelectedContact(null);
@@ -591,7 +709,7 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
     };
 
     return (
-        <div className="flex h-[calc(100vh-theme(spacing.16))] bg-white border-t overflow-hidden">
+        <div className="flex h-screen bg-white border-t overflow-hidden">
 
             {/* --- COLUMN 1: CONVERSATION LIST --- */}
             <div className="w-full md:w-[350px] border-r flex flex-col bg-slate-50/50 shrink-0">
@@ -604,7 +722,7 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                                     ${aiEnabled ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'}`}
                             >
                                 <Sparkles className="h-3 w-3" />
-                                <span>AI</span>
+                                <span>AI Auto Reply</span>
                                 <Switch
                                     checked={aiEnabled}
                                     disabled={aiToggling}
@@ -682,6 +800,11 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                                     <p className={`truncate flex-1 ${convo.status === 'needs_attention' ? 'font-medium text-slate-700' : ''}`}>
                                         {convo.last_message_preview}
                                     </p>
+                                    {convo.tags?.includes('needs_human') && (
+                                        <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 animate-pulse">
+                                            🙋 Needs You
+                                        </Badge>
+                                    )}
                                     {convo.status === 'needs_attention' && (
                                         <div className="h-2 w-2 rounded-full bg-blue-600 shrink-0" />
                                     )}
@@ -693,7 +816,7 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
             </div>
 
             {/* --- COLUMN 2: CHAT THREAD --- */}
-            <div className="flex-1 flex flex-col bg-white min-w-0 h-full">
+            <div className="flex-1 flex flex-col bg-white min-w-0 min-h-0">
                 {selectedContact ? (
                     <>
                         {/* Header */}
@@ -706,15 +829,6 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                                     <h3 className="font-bold text-sm">{selectedContact.display_name}</h3>
                                     <p className="text-xs text-muted-foreground">{selectedContact.contact_point}</p>
                                 </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="outline"
-                                    className="text-green-600 border-green-200 hover:bg-green-50"
-                                    onClick={handleResolve}
-                                >
-                                    <CheckCircle2 className="mr-2 h-4 w-4" /> Resolve
-                                </Button>
                             </div>
                         </div>
 
@@ -862,6 +976,8 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                 <LeadContextPanel
                     contact={selectedContact}
                     merchantId={merchantId}
+                    messages={messages}
+                    onResolve={handleResolve}
                     onUpdate={(updates) => {
                         // Update local state
                         setConversations(prev => prev.map(c =>

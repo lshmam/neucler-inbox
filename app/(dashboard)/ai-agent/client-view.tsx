@@ -6,7 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import {
     Plus, Mic, PhoneIncoming, PhoneOutgoing, Clock, BarChart3,
     PhoneForwarded, Hash, DollarSign, Loader2, AlertCircle, Play,
-    Brain, Settings2, Bot, MessageSquare, Info, ShieldCheck, Phone
+    Brain, Settings2, Bot, MessageSquare, Info, ShieldCheck, Phone, Link2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +25,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { LANGUAGE_OPTIONS } from "@/app/(dashboard)/ai-agent/language-data";
 import { ArticlesManager } from "@/components/knowledge-base/articles-manager";
-import { BusinessInfoManager } from "@/components/knowledge-base/business-info-manager";
 import { toast } from "sonner";
 
 const supabase = createClient(
@@ -78,9 +77,11 @@ interface ClientViewProps {
     initialCallLogs: CallLog[];
     merchantId: string;
     knowledgeBase: KnowledgeBaseData;
+    spamCallsCount: number;
+    bookingLinksCount: number;
 }
 
-export function AIAgentClientView({ initialAgents, initialCallLogs, merchantId, knowledgeBase }: ClientViewProps) {
+export function AIAgentClientView({ initialAgents, initialCallLogs, merchantId, knowledgeBase, spamCallsCount, bookingLinksCount }: ClientViewProps) {
     const [agents, setAgents] = useState<Agent[]>(initialAgents);
     const [callLogs, setCallLogs] = useState<CallLog[]>(initialCallLogs);
 
@@ -106,25 +107,36 @@ export function AIAgentClientView({ initialAgents, initialCallLogs, merchantId, 
         }
     }, [activeAgent]);
 
-    // Save gatekeeper settings
+    // Save gatekeeper settings and sync prompt to Retell
     const saveGatekeeperSettings = async () => {
         if (!activeAgent) return;
         setSavingGatekeeper(true);
         try {
-            const { error } = await supabase
-                .from('ai_agents')
-                .update({
-                    spam_filter_enabled: spamFilterEnabled,
-                    call_handling_mode: callHandlingMode,
-                    forwarding_number: callHandlingMode === 'forward_verified' ? forwardingNumber : null,
-                    log_spam_calls: logSpamCalls,
+            // Call the new API that generates prompt and syncs to Retell
+            const res = await fetch('/api/agent/update-prompt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    agentId: activeAgent.id,
+                    mode: callHandlingMode,
+                    forwardingNumber: callHandlingMode === 'forward_verified' ? forwardingNumber : null,
+                    spamFilterEnabled,
+                    logSpamCalls
                 })
+            });
+
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+
+            // Also update log_spam_calls separately (not in prompt API)
+            await supabase
+                .from('ai_agents')
+                .update({ log_spam_calls: logSpamCalls })
                 .eq('id', activeAgent.id);
 
-            if (error) throw error;
-            toast.success("Gatekeeper settings saved!");
-        } catch (err) {
-            toast.error("Failed to save settings");
+            toast.success("Settings saved & AI prompt updated!");
+        } catch (err: any) {
+            toast.error(err.message || "Failed to save settings");
             console.error(err);
         } finally {
             setSavingGatekeeper(false);
@@ -233,22 +245,22 @@ export function AIAgentClientView({ initialAgents, initialCallLogs, merchantId, 
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Outbound Made</CardTitle>
-                        <PhoneOutgoing className="h-4 w-4 text-blue-500" />
+                        <CardTitle className="text-sm font-medium">Spam Filtered</CardTitle>
+                        <ShieldCheck className="h-4 w-4 text-orange-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">{stats.outboundCalls}</div>
-                        <p className="text-xs text-muted-foreground">Proactive outreach</p>
+                        <div className="text-2xl font-bold">{spamCallsCount}</div>
+                        <p className="text-xs text-muted-foreground">Unwanted calls blocked</p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Cost</CardTitle>
-                        <DollarSign className="h-4 w-4 text-purple-500" />
+                        <CardTitle className="text-sm font-medium">Booking Links</CardTitle>
+                        <Link2 className="h-4 w-4 text-purple-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${stats.totalCost}</div>
-                        <p className="text-xs text-muted-foreground">Cumulative usage</p>
+                        <div className="text-2xl font-bold">{bookingLinksCount}</div>
+                        <p className="text-xs text-muted-foreground">Smart links generated</p>
                     </CardContent>
                 </Card>
             </div>
@@ -358,23 +370,6 @@ export function AIAgentClientView({ initialAgents, initialCallLogs, merchantId, 
 
                 {/* TAB 2: KNOWLEDGE BASE */}
                 <TabsContent value="knowledge" className="space-y-6">
-                    {/* Shared Brain Alert */}
-                    <Alert className="border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50">
-                        <Brain className="h-4 w-4 text-purple-600" />
-                        <AlertTitle className="text-purple-800">Shared Brain</AlertTitle>
-                        <AlertDescription className="text-purple-700">
-                            Information added here is used for both <strong>Phone Calls</strong> and <strong>SMS Auto-Replies</strong>.
-                            Train once, apply everywhere.
-                        </AlertDescription>
-                    </Alert>
-
-                    {/* Business Info Manager */}
-                    <BusinessInfoManager
-                        initialServices={knowledgeBase.services_summary}
-                        initialHours={knowledgeBase.business_hours}
-                        initialTone={knowledgeBase.ai_tone}
-                        initialAiName={knowledgeBase.ai_name}
-                    />
 
                     {/* Articles Manager */}
                     <div className="space-y-2">

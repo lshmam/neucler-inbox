@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { motion } from "framer-motion";
 import {
     Card,
     CardContent,
@@ -44,6 +45,19 @@ const pipelineStages = [
     { label: "Booked", count: 8, color: "bg-green-500", context: "Tagged as 'Booked'", href: "/customers?tag=booked" },
 ];
 
+// Pulsing circle animation
+const pulseVariants = {
+    animate: {
+        scale: [1, 1.15, 1],
+        opacity: [0.4, 0.6, 0.4],
+        transition: {
+            duration: 2,
+            repeat: Infinity,
+            ease: "easeInOut"
+        }
+    }
+};
+
 export default function DashboardPage() {
     // Dummy metrics (replace with real data later)
     const leadsCaptured = 12;
@@ -69,11 +83,19 @@ export default function DashboardPage() {
 
                 {/* CARD 1: AI Safety Net */}
                 <Card className="relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 bg-gradient-to-br from-purple-100 to-purple-50 rounded-full opacity-50" />
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground">AI Safety Net</CardTitle>
-                        <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
-                            <ShieldCheck className="h-5 w-5 text-purple-600" />
+                        <div className="relative">
+                            {/* Pulsing circle behind logo */}
+                            <motion.div
+                                className="absolute inset-0 bg-gradient-to-br from-purple-200 to-purple-100 rounded-full"
+                                variants={pulseVariants}
+                                animate="animate"
+                                style={{ margin: '-8px' }}
+                            />
+                            <div className="relative h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center z-10">
+                                <ShieldCheck className="h-5 w-5 text-purple-600" />
+                            </div>
                         </div>
                     </CardHeader>
                     <CardContent>
@@ -91,11 +113,19 @@ export default function DashboardPage() {
                 {/* CARD 2: Inbox Queue (Clickable) */}
                 <Link href="/inbox?filter=unread">
                     <Card className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02] relative overflow-hidden border-amber-200 bg-amber-50/30">
-                        <div className="absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 bg-gradient-to-br from-amber-100 to-amber-50 rounded-full opacity-50" />
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-muted-foreground">Inbox Queue</CardTitle>
-                            <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
-                                <AlertCircle className="h-5 w-5 text-amber-600" />
+                            <div className="relative">
+                                {/* Pulsing circle behind logo */}
+                                <motion.div
+                                    className="absolute inset-0 bg-gradient-to-br from-amber-200 to-amber-100 rounded-full"
+                                    variants={pulseVariants}
+                                    animate="animate"
+                                    style={{ margin: '-8px' }}
+                                />
+                                <div className="relative h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center z-10">
+                                    <AlertCircle className="h-5 w-5 text-amber-600" />
+                                </div>
                             </div>
                         </CardHeader>
                         <CardContent>
@@ -116,11 +146,19 @@ export default function DashboardPage() {
 
                 {/* CARD 3: Revenue Signals */}
                 <Card className="relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 bg-gradient-to-br from-green-100 to-green-50 rounded-full opacity-50" />
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium text-muted-foreground">Revenue Signals</CardTitle>
-                        <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
-                            <MousePointerClick className="h-5 w-5 text-green-600" />
+                        <div className="relative">
+                            {/* Pulsing circle behind logo */}
+                            <motion.div
+                                className="absolute inset-0 bg-gradient-to-br from-green-200 to-green-100 rounded-full"
+                                variants={pulseVariants}
+                                animate="animate"
+                                style={{ margin: '-8px' }}
+                            />
+                            <div className="relative h-10 w-10 rounded-full bg-green-100 flex items-center justify-center z-10">
+                                <MousePointerClick className="h-5 w-5 text-green-600" />
+                            </div>
                         </div>
                     </CardHeader>
                     <CardContent>

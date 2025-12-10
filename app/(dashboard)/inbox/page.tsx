@@ -25,10 +25,10 @@ export default async function UnifiedInboxPage() {
         return <InboxClient initialConversations={[]} merchantId={merchantId} isAiEnabled={isAiEnabled} />;
     }
 
-    // Fetch all customers for name/profile mapping
+    // Fetch all customers for name/profile/tags mapping
     const { data: customers } = await supabaseAdmin
         .from("customers")
-        .select("id, first_name, last_name, phone_number, email")
+        .select("id, first_name, last_name, phone_number, email, tags, status")
         .eq("merchant_id", merchantId);
 
     // Group the unified feed into conversations
@@ -50,7 +50,8 @@ export default async function UnifiedInboxPage() {
                 customer_id: customer?.id || conversationKey,
                 display_name: customer ? `${customer.first_name || ''} ${customer.last_name || ''}`.trim() : interaction.contact_point,
                 contact_point: interaction.contact_point,
-                tags: [],
+                tags: customer?.tags || [],
+                customerStatus: customer?.status || 'new_lead',
                 messages: []
             });
         }
@@ -62,11 +63,17 @@ export default async function UnifiedInboxPage() {
     // Finalize conversation objects with latest message details
     const conversations = Array.from(conversationsMap.values()).map(convo => {
         const lastMessage = convo.messages[convo.messages.length - 1];
+        const hasNeedsHumanTag = convo.tags?.includes('needs_human');
+        const isResolved = convo.customerStatus === 'resolved';
 
-        // Only needs attention if:
-        // 1. Last message was from customer (inbound) - means awaiting reply
-        // 2. Not explicitly resolved
-        const needsAttention = lastMessage.direction === 'inbound';
+        // Needs attention if:
+        // 1. NOT explicitly resolved
+        // 2. AND (last message was from customer OR has 'needs_human' tag OR status is 'needs_attention')
+        const needsAttention = !isResolved && (
+            lastMessage.direction === 'inbound' ||
+            hasNeedsHumanTag ||
+            convo.customerStatus === 'needs_attention'
+        );
 
         return {
             ...convo,
@@ -81,5 +88,9 @@ export default async function UnifiedInboxPage() {
         new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
     );
 
-    return <InboxClient initialConversations={conversations} merchantId={merchantId} isAiEnabled={isAiEnabled} />;
+    return (
+        <div className="h-full">
+            <InboxClient initialConversations={conversations} merchantId={merchantId} isAiEnabled={isAiEnabled} />
+        </div>
+    );
 }

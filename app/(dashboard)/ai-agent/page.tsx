@@ -56,12 +56,21 @@ export default async function AIAgentPage({ searchParams }: AIAgentPageProps) {
     const [
         { data: agents },
         { data: callLogs },
+        { data: smartLinks },
         knowledgeBase
     ] = await Promise.all([
         supabaseAdmin.from("ai_agents").select("*").eq("merchant_id", merchantId),
         supabaseAdmin.from("call_logs").select("*").eq("merchant_id", merchantId).order("created_at", { ascending: false }).limit(50),
+        supabaseAdmin.from("smart_links").select("id").eq("merchant_id", merchantId),
         getKnowledgeBaseData()
     ]);
+
+    // Count spam calls (status contains 'spam' or 'blocked')
+    const spamCallsCount = (callLogs || []).filter((c: any) =>
+        c.status?.toLowerCase().includes('spam') ||
+        c.status?.toLowerCase().includes('blocked') ||
+        c.status?.toLowerCase().includes('filtered')
+    ).length;
 
     return (
         <AIAgentClientView
@@ -69,6 +78,8 @@ export default async function AIAgentPage({ searchParams }: AIAgentPageProps) {
             initialCallLogs={callLogs || []}
             merchantId={merchantId}
             knowledgeBase={knowledgeBase}
+            spamCallsCount={spamCallsCount}
+            bookingLinksCount={smartLinks?.length || 0}
         />
     );
 }

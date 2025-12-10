@@ -143,6 +143,27 @@ export async function POST(request: Request) {
                         status: "sent",
                         created_at: new Date().toISOString()
                     });
+
+                    // If AI needs human help, add tag to customer
+                    if (aiResult.needsHuman && customerId) {
+                        const { data: customer } = await supabaseAdmin
+                            .from("customers")
+                            .select("tags")
+                            .eq("id", customerId)
+                            .single();
+
+                        const currentTags = customer?.tags || [];
+                        if (!currentTags.includes('needs_human')) {
+                            await supabaseAdmin
+                                .from("customers")
+                                .update({
+                                    tags: [...currentTags, 'needs_human'],
+                                    status: 'needs_attention'
+                                })
+                                .eq("id", customerId);
+                            console.log(`🏷️ Added 'needs_human' tag to customer ${customerId}`);
+                        }
+                    }
                 } catch (twilioError) {
                     console.error("❌ Twilio send error:", twilioError);
                 }

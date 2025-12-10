@@ -15,6 +15,7 @@ interface AIReplyResult {
     reply?: string;
     error?: string;
     limitReached?: boolean;
+    needsHuman?: boolean;  // True when AI says it needs human help
 }
 
 /**
@@ -245,12 +246,27 @@ Remember: Sound like a helpful human, not an AI reading from a script.`;
             }
         }
 
+        // 6b. Detect if AI is handing off to a human
+        const handoffPhrases = [
+            'have someone get back to you',
+            'get someone to help',
+            'have someone reach out',
+            'have a team member',
+            'get back to you',
+            'someone will contact you',
+            'I\'ll have someone assist',
+            'let me get someone'
+        ];
+        const needsHuman = handoffPhrases.some(phrase =>
+            reply.toLowerCase().includes(phrase.toLowerCase())
+        );
+
         // 6. Increment usage
         await incrementUsage(merchantId);
 
-        console.log(`✅ [AI Reply] Generated for ${merchantId} (${remaining - 1} remaining)`);
+        console.log(`✅ [AI Reply] Generated for ${merchantId} (${remaining - 1} remaining)${needsHuman ? ' [NEEDS_HUMAN]' : ''}`);
 
-        return { success: true, reply };
+        return { success: true, reply, needsHuman };
 
     } catch (error: any) {
         console.error('❌ [AI Reply] Generation Error:', error);
