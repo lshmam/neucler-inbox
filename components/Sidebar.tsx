@@ -86,17 +86,17 @@ export function Sidebar({ branding = DEFAULT_BRANDING }: SidebarProps) {
         <div className="flex flex-col h-full w-64 bg-[#09090b] border-r border-zinc-800 text-zinc-300 shrink-0">
 
             {/* --- HEADER --- */}
-            <div className="h-16 flex items-center px-6 border-b border-zinc-800 shrink-0">
+            <div className="min-h-16 flex items-center px-6 py-3 border-b border-zinc-800 shrink-0">
                 <div className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded-md bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0 text-white font-bold overflow-hidden">
                         {branding.logo ? <img src={branding.logo} className="w-full h-full object-cover" alt="Logo" /> : branding.name.substring(0, 2)}
                     </div>
-                    <h1 className="font-semibold text-white text-sm truncate">{branding.name}</h1>
+                    <h1 className="font-semibold text-white text-sm leading-tight line-clamp-2">{branding.name}</h1>
                 </div>
             </div>
 
             {/* --- SCROLLABLE NAV --- */}
-            <div className="flex-1 overflow-y-auto py-6 px-4 space-y-6 
+            <div className="flex-1 overflow-y-auto py-4 px-4 flex flex-col
                 /* SCROLLBAR STYLING START */
                 [&::-webkit-scrollbar]:w-1.5
                 [&::-webkit-scrollbar-track]:bg-transparent
@@ -105,8 +105,8 @@ export function Sidebar({ branding = DEFAULT_BRANDING }: SidebarProps) {
                 hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700
                 /* SCROLLBAR STYLING END */
             ">
-                {NAV_SECTIONS.map((section) => (
-                    <div key={section.title}>
+                {NAV_SECTIONS.map((section, index) => (
+                    <div key={section.title} className={index < NAV_SECTIONS.length - 1 ? "flex-1" : ""}>
                         <button
                             onClick={() => toggleGroup(section.title)}
                             className="flex items-center justify-between w-full px-2 py-2 text-[11px] font-bold text-zinc-500 uppercase tracking-wider hover:text-zinc-300 transition-colors mb-1"

@@ -55,17 +55,26 @@ interface LeadContextPanelProps {
     merchantId: string;
     onUpdate: (updates: Partial<Conversation>) => void;
     onResolve: () => void;
+    onClose: () => void;
     messages: any[];
 }
 
-function LeadContextPanel({ contact, merchantId, onUpdate, onResolve, messages }: LeadContextPanelProps) {
-    const [isEditingName, setIsEditingName] = useState(false);
-    const [editedName, setEditedName] = useState(contact.display_name);
+// Mock activity data - in real app this would come from database
+interface ActivityItem {
+    id: string;
+    type: 'survey' | 'payment' | 'call' | 'note' | 'status_change' | 'assignment' | 'message';
+    title: string;
+    description?: string;
+    time: string;
+    user?: string;
+    icon?: string;
+}
+
+function LeadContextPanel({ contact, merchantId, onUpdate, onResolve, onClose, messages }: LeadContextPanelProps) {
+    const [activeTab, setActiveTab] = useState<'details' | 'activity'>('details');
     const [status, setStatus] = useState(contact.status || 'new_lead');
-    const [notes, setNotes] = useState('');
     const [newTag, setNewTag] = useState('');
     const [localTags, setLocalTags] = useState<string[]>(contact.tags || []);
-    const [contactOpen, setContactOpen] = useState(false);
     const [isSheetOpen, setIsSheetOpen] = useState(false);
     const [customerData, setCustomerData] = useState<any>(null);
     const [isTraining, setIsTraining] = useState(false);
@@ -83,35 +92,12 @@ function LeadContextPanel({ contact, merchantId, onUpdate, onResolve, messages }
                 .then(({ data }) => {
                     if (data) {
                         setCustomerData(data);
-                        setNotes(data.notes || '');
                         setLocalTags(data.tags || contact.tags || []);
                         setStatus(data.status || contact.status || 'new_lead');
                     }
                 });
         }
     }, [contact.customer_id]);
-
-    const handleSaveName = async () => {
-        if (!editedName.trim()) return;
-
-        // Parse first/last name
-        const parts = editedName.trim().split(' ');
-        const firstName = parts[0] || '';
-        const lastName = parts.slice(1).join(' ') || '';
-
-        const { error } = await supabase
-            .from('customers')
-            .update({ first_name: firstName, last_name: lastName })
-            .eq('id', contact.customer_id);
-
-        if (!error) {
-            onUpdate({ display_name: editedName });
-            toast.success('Name updated');
-        } else {
-            toast.error('Failed to update name');
-        }
-        setIsEditingName(false);
-    };
 
     const handleStatusChange = async (newStatus: string) => {
         setStatus(newStatus);
@@ -126,17 +112,6 @@ function LeadContextPanel({ contact, merchantId, onUpdate, onResolve, messages }
             toast.success('Status updated');
         } else {
             toast.error('Failed to update status');
-        }
-    };
-
-    const handleNotesBlur = async () => {
-        const { error } = await supabase
-            .from('customers')
-            .update({ notes })
-            .eq('id', contact.customer_id);
-
-        if (!error) {
-            toast.success('Notes saved');
         }
     };
 
@@ -171,230 +146,393 @@ function LeadContextPanel({ contact, merchantId, onUpdate, onResolve, messages }
         }
     };
 
-    const handleCopyBookingLink = () => {
-        const bookingUrl = `${window.location.origin}/book/${merchantId}`;
-        navigator.clipboard.writeText(bookingUrl);
-        toast.success('Booking link copied!');
-    };
-
     const getStatusConfig = (s: string) => {
         switch (s) {
-            case 'new_lead': return { label: '🔵 New Lead', color: 'bg-blue-50 text-blue-700 border-blue-200' };
-            case 'conversation': return { label: '🟡 Conversation', color: 'bg-yellow-50 text-yellow-700 border-yellow-200' };
-            case 'booked': return { label: '🟢 Booked', color: 'bg-green-50 text-green-700 border-green-200' };
-            case 'lost': return { label: '🔴 Lost/Ghosting', color: 'bg-red-50 text-red-700 border-red-200' };
-            default: return { label: '🔵 New Lead', color: 'bg-blue-50 text-blue-700 border-blue-200' };
+            case 'new_lead': return { label: 'New', color: 'text-yellow-500' };
+            case 'qualifying': return { label: 'Qualifying', color: 'text-blue-500' };
+            case 'conversation': return { label: 'Conversation', color: 'text-purple-500' };
+            case 'booked': return { label: 'Booked', color: 'text-green-500' };
+            case 'lost': return { label: 'Lost', color: 'text-red-500' };
+            default: return { label: 'New', color: 'text-yellow-500' };
         }
     };
 
-    const isUnknownCaller = contact.display_name.toLowerCase().includes('unknown') ||
-        contact.display_name.match(/^\+?[0-9\s-]+$/);
+    // Generate mock recent activity based on messages
+    const recentActivity: ActivityItem[] = [
+        { id: '1', type: 'survey', title: 'Completed Feedback Survey', time: '59m', icon: '📋' },
+        { id: '2', type: 'payment', title: '$149.00 payment received', time: '2d', icon: '💳' },
+        { id: '3', type: 'call', title: 'Missed call', time: '3d', icon: '📞' },
+    ];
+
+    // Generate mock activity timeline
+    const activityTimeline = {
+        today: [
+            { id: 't1', type: 'status_change', title: `Rita moved ${contact.display_name} to`, description: '🎯 Qualifying', time: 'just now', user: 'Rita' },
+            { id: 't2', type: 'assignment', title: `${contact.display_name} was assigned to Rita`, time: 'just now' },
+            { id: 't3', type: 'survey', title: 'Completed Feedback Survey', description: 'Left positive feedback', time: '59m', user: 'Aura Medical Spa' },
+            { id: 't4', type: 'note', title: 'Mai made a note', description: 'Last time Will came in, we didn\'t have the...', time: '1h', user: 'Aura Medical Spa' },
+        ],
+        '2_days_ago': [
+            { id: 'd1', type: 'payment', title: '$149.00 payment received', description: 'Invoice 12345', time: '2d', user: 'Aura Medical Spa' },
+            { id: 'd2', type: 'assignment', title: 'Steve was assigned to Jane', time: '59m' },
+            { id: 'd3', type: 'note', title: 'Elena made a note', description: 'Last time Will came in, we didn\'t have the...', time: '2d', user: 'Aura Medical Spa' },
+            { id: 'd4', type: 'message', title: `${contact.display_name}`, description: 'New lead from Squarespace', time: '2d', user: 'Aura Medical Spa' },
+        ]
+    };
+
+    const getActivityIcon = (type: string) => {
+        switch (type) {
+            case 'survey': return <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600"><CheckCircle2 className="h-4 w-4" /></div>;
+            case 'payment': return <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600"><span className="text-sm">💳</span></div>;
+            case 'call': return <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-600"><Phone className="h-4 w-4" /></div>;
+            case 'note': return <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600"><Pencil className="h-4 w-4" /></div>;
+            case 'status_change': return <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600"><span className="text-sm">⚡</span></div>;
+            case 'assignment': return <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600"><span className="text-sm">👤</span></div>;
+            case 'message': return <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600"><MessageSquare className="h-4 w-4" /></div>;
+            default: return <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600"><Clock className="h-4 w-4" /></div>;
+        }
+    };
+
+    // Visible tags (max 4) with overflow indicator
+    const visibleTags = localTags.slice(0, 4);
+    const overflowCount = localTags.length - 4;
 
     return (
-        <div className="w-[300px] border-l bg-white hidden xl:flex flex-col shrink-0 h-full">
-            <div className="flex-1 overflow-y-auto p-5 space-y-5">
-
-                {/* HEADER: Editable Identity */}
-                <div className="text-center">
-                    <Avatar className="h-16 w-16 mx-auto mb-3">
+        <div className="w-[320px] border-l bg-slate-100 text-slate-900 hidden xl:flex flex-col shrink-0 h-full">
+            {/* HEADER */}
+            <div className="p-4 flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                    <Avatar className="h-12 w-12">
                         <AvatarFallback className="text-lg bg-gradient-to-br from-[#906CDD] to-[#7a5bb5] text-white font-bold">
-                            {contact.display_name[0]?.toUpperCase() || '?'}
+                            {contact.display_name.substring(0, 2).toUpperCase()}
                         </AvatarFallback>
                     </Avatar>
-
-                    {isEditingName ? (
-                        <div className="flex items-center justify-center gap-1">
-                            <Input
-                                value={editedName}
-                                onChange={(e) => setEditedName(e.target.value)}
-                                className="h-8 text-center font-bold w-40"
-                                autoFocus
-                                onKeyDown={(e) => e.key === 'Enter' && handleSaveName()}
-                            />
-                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleSaveName}>
-                                <Check className="h-4 w-4 text-green-600" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setIsEditingName(false)}>
-                                <X className="h-4 w-4 text-red-500" />
-                            </Button>
-                        </div>
-                    ) : (
-                        <div className="flex items-center justify-center gap-1">
-                            <h2 className="font-bold text-lg">{contact.display_name}</h2>
-                            {isUnknownCaller && (
-                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => {
-                                    setEditedName(contact.display_name);
-                                    setIsEditingName(true);
-                                }}>
-                                    <Pencil className="h-3 w-3 text-slate-400" />
-                                </Button>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Collapsible Contact Details */}
-                    <Collapsible open={contactOpen} onOpenChange={setContactOpen}>
-                        <CollapsibleTrigger asChild>
-                            <Button variant="ghost" size="sm" className="text-xs text-muted-foreground h-6 mt-1">
-                                {contact.contact_point}
-                                {contactOpen ? <ChevronUp className="h-3 w-3 ml-1" /> : <ChevronDown className="h-3 w-3 ml-1" />}
-                            </Button>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="mt-2 space-y-1 text-xs text-muted-foreground">
-                            <div className="flex items-center justify-center gap-2">
-                                <Phone className="h-3 w-3" />
-                                <span>{contact.contact_point}</span>
-                            </div>
-                            {customerData?.email && (
-                                <div className="flex items-center justify-center gap-2">
-                                    <Mail className="h-3 w-3" />
-                                    <span>{customerData.email}</span>
-                                </div>
-                            )}
-                        </CollapsibleContent>
-                    </Collapsible>
+                    <div>
+                        <h2 className="font-semibold text-base text-slate-900">{contact.display_name}</h2>
+                        <p className="text-xs text-slate-500">{contact.contact_point}</p>
+                    </div>
                 </div>
-
-                {/* STATUS DROPDOWN */}
-                <div>
-                    <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Lead Status</h4>
-                    <Select value={status} onValueChange={handleStatusChange}>
-                        <SelectTrigger className={`w-full h-9 text-sm font-medium ${getStatusConfig(status).color}`}>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="new_lead">🔵 New Lead</SelectItem>
-                            <SelectItem value="conversation">🟡 Conversation</SelectItem>
-                            <SelectItem value="booked">🟢 Booked</SelectItem>
-                            <SelectItem value="lost">🔴 Lost/Ghosting</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-
-                {/* COPY BOOKING LINK */}
                 <Button
-                    variant="outline"
-                    className="w-full gap-2 border-dashed"
-                    onClick={handleCopyBookingLink}
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-slate-500 hover:text-slate-900 hover:bg-slate-200"
+                    onClick={onClose}
                 >
-                    <Copy className="h-4 w-4" />
-                    Copy Booking Link
+                    <X className="h-4 w-4" />
                 </Button>
+            </div>
 
-                {/* QUICK NOTE */}
-                <div>
-                    <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Internal Notes</h4>
-                    <Textarea
-                        placeholder="Add quick notes... (auto-saves)"
-                        className="min-h-[80px] text-sm bg-amber-50/50 border-amber-100 resize-none"
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        onBlur={handleNotesBlur}
-                    />
-                </div>
-
-                {/* RAPID TAGGING */}
-                <div>
-                    <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Tags</h4>
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                        {localTags.map((tag, i) => (
-                            <Badge
-                                key={i}
-                                variant="secondary"
-                                className="pl-2 pr-1 py-0.5 text-xs flex items-center gap-1 cursor-pointer hover:bg-slate-200"
-                                onClick={() => handleRemoveTag(tag)}
-                            >
-                                {tag}
-                                <X className="h-3 w-3" />
-                            </Badge>
-                        ))}
+            {/* RECENT ACTIVITY SUMMARY */}
+            <div className="px-4 pb-3 space-y-1.5">
+                <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Recent Activity</p>
+                {recentActivity.map((activity) => (
+                    <div key={activity.id} className="flex items-center gap-2 text-xs">
+                        <span>{activity.icon}</span>
+                        <span className="text-slate-700">{activity.title}</span>
+                        <span className="text-slate-400 ml-auto">{activity.time}</span>
                     </div>
-                    <div className="flex gap-1">
-                        <Input
-                            placeholder="Add tag..."
-                            value={newTag}
-                            onChange={(e) => setNewTag(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
-                            className="h-8 text-sm"
-                        />
-                        <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" onClick={handleAddTag}>
-                            <Plus className="h-4 w-4" />
-                        </Button>
-                    </div>
-                </div>
+                ))}
             </div>
 
             {/* ACTION BUTTONS */}
-            <div className="p-4 border-t space-y-2">
-                {/* RESOLVE BUTTON */}
+            <div className="px-4 py-3 flex items-center justify-center gap-2 border-t border-b border-slate-200">
+                <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full border border-slate-300 text-slate-500 hover:text-slate-900 hover:bg-slate-200">
+                    <Phone className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full border border-slate-300 text-slate-500 hover:text-slate-900 hover:bg-slate-200">
+                    <MessageSquare className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full border border-slate-300 text-slate-500 hover:text-slate-900 hover:bg-slate-200">
+                    <Mail className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full border border-slate-300 text-slate-500 hover:text-slate-900 hover:bg-slate-200">
+                    <Copy className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full border border-slate-300 text-slate-500 hover:text-slate-900 hover:bg-slate-200">
+                    <MoreHorizontal className="h-4 w-4" />
+                </Button>
+            </div>
+
+            {/* TABS */}
+            <div className="px-4 pt-3">
+                <div className="flex border-b border-slate-200">
+                    <button
+                        onClick={() => setActiveTab('details')}
+                        className={`flex-1 pb-2 text-sm font-medium transition-colors ${activeTab === 'details' ? 'text-slate-900 border-b-2 border-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        Details
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('activity')}
+                        className={`flex-1 pb-2 text-sm font-medium transition-colors ${activeTab === 'activity' ? 'text-slate-900 border-b-2 border-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        Activity
+                    </button>
+                </div>
+            </div>
+
+            {/* TAB CONTENT */}
+            <div className="flex-1 overflow-y-auto">
+                {activeTab === 'details' ? (
+                    <div className="p-4 space-y-4">
+                        {/* STATUS */}
+                        <div>
+                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Status</p>
+                            <Select value={status} onValueChange={handleStatusChange}>
+                                <SelectTrigger className="w-full h-9 text-sm bg-white border-slate-300 text-slate-900">
+                                    <div className="flex items-center gap-2">
+                                        <span className={getStatusConfig(status).color}>⭐</span>
+                                        <SelectValue />
+                                    </div>
+                                </SelectTrigger>
+                                <SelectContent className="bg-white border-slate-200">
+                                    <SelectItem value="new_lead">New</SelectItem>
+                                    <SelectItem value="qualifying">Qualifying</SelectItem>
+                                    <SelectItem value="conversation">Conversation</SelectItem>
+                                    <SelectItem value="booked">Booked</SelectItem>
+                                    <SelectItem value="lost">Lost</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* NAME */}
+                        <div>
+                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Name</p>
+                            <p className="text-sm">{contact.display_name}</p>
+                        </div>
+
+                        {/* PHONE */}
+                        <div>
+                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Phone</p>
+                            <p className="text-sm">{contact.contact_point}</p>
+                        </div>
+
+                        {/* EMAIL */}
+                        <div>
+                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Email</p>
+                            <p className="text-sm">{customerData?.email || 'Not provided'}</p>
+                        </div>
+
+                        {/* CARD ON FILE */}
+                        <div>
+                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Card on File</p>
+                            <div className="flex items-center gap-2 text-sm">
+                                <div className="bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">VISA</div>
+                                <span>Visa •••• 1234</span>
+                            </div>
+                            <p className="text-xs text-blue-400 mt-0.5">Expires 12/28</p>
+                        </div>
+
+                        {/* TAGS */}
+                        <div>
+                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Tags</p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {visibleTags.length > 0 ? (
+                                    <>
+                                        {visibleTags.map((tag, i) => (
+                                            <Badge
+                                                key={i}
+                                                variant="secondary"
+                                                className="px-2 py-0.5 text-xs bg-slate-200 text-slate-700 hover:bg-slate-300 cursor-pointer"
+                                                onClick={() => handleRemoveTag(tag)}
+                                            >
+                                                {tag}
+                                            </Badge>
+                                        ))}
+                                        {overflowCount > 0 && (
+                                            <Badge variant="secondary" className="px-2 py-0.5 text-xs bg-slate-300 text-slate-600">
+                                                +{overflowCount}
+                                            </Badge>
+                                        )}
+                                    </>
+                                ) : (
+                                    <span className="text-xs text-slate-500">No tags</span>
+                                )}
+                            </div>
+                            <div className="flex gap-1 mt-2">
+                                <Input
+                                    placeholder="Add tag..."
+                                    value={newTag}
+                                    onChange={(e) => setNewTag(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
+                                    className="h-7 text-xs bg-white border-slate-300 text-slate-900 placeholder:text-slate-400"
+                                />
+                                <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-slate-500 hover:text-slate-900" onClick={handleAddTag}>
+                                    <Plus className="h-3 w-3" />
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* MEMBERSHIP */}
+                        <div>
+                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Membership ⓘ</p>
+                            <Select defaultValue="diamond">
+                                <SelectTrigger className="w-full h-8 text-sm bg-white border-slate-300 text-slate-900">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-white border-slate-200">
+                                    <SelectItem value="diamond">Diamond Care Member</SelectItem>
+                                    <SelectItem value="gold">Gold Member</SelectItem>
+                                    <SelectItem value="silver">Silver Member</SelectItem>
+                                    <SelectItem value="none">No Membership</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {/* FAVORITE SERVICES */}
+                        <div>
+                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Favorite Services</p>
+                            <p className="text-sm">Facial Botox, Red Light Therapy</p>
+                        </div>
+
+                        {/* BIRTHDAY */}
+                        <div>
+                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Birthday</p>
+                            <p className="text-sm">{customerData?.birthday || 'January 10'}</p>
+                        </div>
+
+                        {/* ALLERGIES */}
+                        <div>
+                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Allergies</p>
+                            <p className="text-sm">{customerData?.allergies || 'None listed'}</p>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="p-4">
+                        {/* ACTIVITY TIMELINE HEADER */}
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-semibold text-sm text-slate-900">Activity Timeline</h3>
+                            <Button size="icon" variant="ghost" className="h-6 w-6 text-slate-500 hover:text-slate-900">
+                                <ExternalLink className="h-3 w-3" />
+                            </Button>
+                        </div>
+
+                        {/* TODAY SECTION */}
+                        <div className="mb-6">
+                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-3">Today ({activityTimeline.today.length})</p>
+                            <div className="space-y-3">
+                                {activityTimeline.today.map((item) => (
+                                    <div key={item.id} className="flex gap-3">
+                                        {getActivityIcon(item.type)}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <p className="text-sm font-medium text-slate-800 truncate">{item.title}</p>
+                                                <span className="text-[10px] text-slate-400 shrink-0">{item.time}</span>
+                                            </div>
+                                            {item.description && (
+                                                <p className="text-xs text-slate-500 truncate">{item.description}</p>
+                                            )}
+                                            {item.user && (
+                                                <div className="flex items-center gap-1.5 mt-1">
+                                                    <Avatar className="h-4 w-4">
+                                                        <AvatarFallback className="text-[8px] bg-slate-300 text-slate-700">{item.user[0]}</AvatarFallback>
+                                                    </Avatar>
+                                                    <span className="text-[10px] text-slate-400">{item.user}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* 2 DAYS AGO SECTION */}
+                        <div>
+                            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-3">2 Days Ago ({activityTimeline['2_days_ago'].length})</p>
+                            <div className="space-y-3">
+                                {activityTimeline['2_days_ago'].map((item) => (
+                                    <div key={item.id} className="flex gap-3">
+                                        {getActivityIcon(item.type)}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <p className="text-sm font-medium text-slate-800 truncate">{item.title}</p>
+                                                <span className="text-[10px] text-slate-400 shrink-0">{item.time}</span>
+                                            </div>
+                                            {item.description && (
+                                                <p className="text-xs text-slate-500 truncate">{item.description}</p>
+                                            )}
+                                            {item.user && (
+                                                <div className="flex items-center gap-1.5 mt-1">
+                                                    <Avatar className="h-4 w-4">
+                                                        <AvatarFallback className="text-[8px] bg-slate-300 text-slate-700">{item.user[0]}</AvatarFallback>
+                                                    </Avatar>
+                                                    <span className="text-[10px] text-slate-400">{item.user}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* BOTTOM ACTION BUTTONS */}
+            <div className="p-3 border-t border-slate-200 space-y-2">
                 <Button
-                    className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white"
+                    className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white h-9 text-sm"
                     onClick={onResolve}
                 >
                     <CheckCircle2 className="h-4 w-4" />
                     Resolve Conversation
                 </Button>
 
-                {/* TRAIN AI BUTTON */}
-                <Button
-                    variant="outline"
-                    className="w-full gap-2 border-purple-200 text-purple-700 hover:bg-purple-50"
-                    onClick={async () => {
-                        // Find last inbound and outbound messages
-                        const sortedMsgs = [...messages].sort((a, b) =>
-                            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-                        );
-                        const lastInbound = [...sortedMsgs].reverse().find(m => m.direction === 'inbound');
-                        const lastOutbound = [...sortedMsgs].reverse().find(m => m.direction === 'outbound');
+                <div className="flex gap-2">
+                    <Button
+                        variant="outline"
+                        className="flex-1 gap-1.5 border-purple-300 text-purple-600 hover:bg-purple-50 hover:text-purple-700 h-8 text-xs"
+                        onClick={async () => {
+                            const sortedMsgs = [...messages].sort((a, b) =>
+                                new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                            );
+                            const lastInbound = [...sortedMsgs].reverse().find(m => m.direction === 'inbound');
+                            const lastOutbound = [...sortedMsgs].reverse().find(m => m.direction === 'outbound');
 
-                        if (!lastInbound || !lastOutbound) {
-                            toast.error("Need both a customer question and your reply to train AI");
-                            return;
-                        }
-
-                        setIsTraining(true);
-                        try {
-                            const res = await fetch("/api/kb/train", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({
-                                    merchantId,
-                                    customerQuestion: lastInbound.content || lastInbound.body,
-                                    merchantAnswer: lastOutbound.content || lastOutbound.body
-                                })
-                            });
-
-                            if (res.ok) {
-                                const data = await res.json();
-                                toast.success(`📚 AI trained! Article: "${data.article?.title}"`);
-                            } else {
-                                throw new Error("Failed to train");
+                            if (!lastInbound || !lastOutbound) {
+                                toast.error("Need both a customer question and your reply to train AI");
+                                return;
                             }
-                        } catch (error) {
-                            toast.error("Failed to train AI");
-                        } finally {
-                            setIsTraining(false);
-                        }
-                    }}
-                    disabled={isTraining}
-                >
-                    {isTraining ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                        <BookOpen className="h-4 w-4" />
-                    )}
-                    Train AI on Response
-                </Button>
 
-                {/* VIEW FULL PROFILE BUTTON */}
-                <Button
-                    variant="outline"
-                    className="w-full gap-2"
-                    onClick={() => setIsSheetOpen(true)}
-                >
-                    <ExternalLink className="h-4 w-4" />
-                    View Full Profile →
-                </Button>
+                            setIsTraining(true);
+                            try {
+                                const res = await fetch("/api/kb/train", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                        merchantId,
+                                        customerQuestion: lastInbound.content || lastInbound.body,
+                                        merchantAnswer: lastOutbound.content || lastOutbound.body
+                                    })
+                                });
+
+                                if (res.ok) {
+                                    const data = await res.json();
+                                    toast.success(`📚 AI trained! Article: "${data.article?.title}"`);
+                                } else {
+                                    throw new Error("Failed to train");
+                                }
+                            } catch (error) {
+                                toast.error("Failed to train AI");
+                            } finally {
+                                setIsTraining(false);
+                            }
+                        }}
+                        disabled={isTraining}
+                    >
+                        {isTraining ? <Loader2 className="h-3 w-3 animate-spin" /> : <BookOpen className="h-3 w-3" />}
+                        Train AI
+                    </Button>
+
+                    <Button
+                        variant="outline"
+                        className="flex-1 gap-1.5 border-slate-300 text-slate-600 hover:bg-slate-200 hover:text-slate-900 h-8 text-xs"
+                        onClick={() => setIsSheetOpen(true)}
+                    >
+                        <ExternalLink className="h-3 w-3" />
+                        Full Profile
+                    </Button>
+                </div>
             </div>
 
             {/* CUSTOMER SHEET */}
@@ -420,6 +558,7 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
     const [aiToggling, setAiToggling] = useState(false);
     const [trainAi, setTrainAi] = useState(false);
     const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+    const [showSidebar, setShowSidebar] = useState(true);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     const supabase = createClient();
@@ -709,11 +848,12 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
     };
 
     return (
-        <div className="flex h-screen bg-white border-t overflow-hidden">
+        <div className="flex h-full bg-white border-t overflow-hidden">
 
             {/* --- COLUMN 1: CONVERSATION LIST --- */}
-            <div className="w-full md:w-[350px] border-r flex flex-col bg-slate-50/50 shrink-0">
-                <div className="p-4 space-y-4">
+            <div className="w-full md:w-[350px] border-r flex flex-col bg-slate-50/50 shrink-0 h-full overflow-hidden">
+                {/* Header Section */}
+                <div className="p-4 space-y-4 shrink-0">
                     <div className="flex items-center justify-between">
                         <h2 className="font-bold text-lg">Inbox</h2>
                         <div className="flex items-center gap-2">
@@ -766,57 +906,63 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                     </div>
                 </div>
 
-                <ScrollArea className="flex-1">
-                    {filteredConversations.length === 0 ? (
-                        <div className="p-8 text-center text-muted-foreground">
-                            <MessageSquare className="h-12 w-12 mx-auto mb-2 text-slate-300" />
-                            <p>No {filter === 'needs_attention' ? 'new' : ''} conversations</p>
-                        </div>
-                    ) : (
-                        filteredConversations.map((convo) => (
-                            <div
-                                key={convo.customer_id}
-                                onClick={() => setSelectedContact(convo)}
-                                className={`
+                {/* Scrollable Conversations List */}
+                <div className="flex-1 min-h-0 overflow-hidden">
+                    <ScrollArea className="h-full">
+                        {filteredConversations.length === 0 ? (
+                            <div className="p-8 text-center text-muted-foreground">
+                                <MessageSquare className="h-12 w-12 mx-auto mb-2 text-slate-300" />
+                                <p>No {filter === 'needs_attention' ? 'new' : ''} conversations</p>
+                            </div>
+                        ) : (
+                            filteredConversations.map((convo) => (
+                                <div
+                                    key={convo.customer_id}
+                                    onClick={() => {
+                                        setSelectedContact(convo);
+                                        setShowSidebar(true);
+                                    }}
+                                    className={`
                                     p-4 border-b cursor-pointer transition-colors hover:bg-slate-100
                                     ${selectedContact?.customer_id === convo.customer_id ? 'bg-blue-50/50 border-l-4 border-l-blue-600' : 'border-l-4 border-l-transparent'}
                                 `}
-                            >
-                                <div className="flex justify-between items-start mb-1">
-                                    <span className={`font-semibold text-sm truncate max-w-[180px] ${convo.status === 'needs_attention' ? 'text-slate-900' : 'text-slate-600'}`}>
-                                        {convo.display_name}
-                                    </span>
-                                    <span className="text-[10px] text-slate-400" suppressHydrationWarning>
-                                        {formatDistanceToNow(new Date(convo.last_message_at), { addSuffix: true })}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    <div className={`
+                                >
+                                    <div className="flex justify-between items-start mb-1">
+                                        <span className={`font-semibold text-sm truncate max-w-[180px] ${convo.status === 'needs_attention' ? 'text-slate-900' : 'text-slate-600'}`}>
+                                            {convo.display_name}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400" suppressHydrationWarning>
+                                            {formatDistanceToNow(new Date(convo.last_message_at), { addSuffix: true })}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                        <div className={`
                                         p-1 rounded text-white
                                         ${convo.last_channel === 'sms' ? 'bg-green-500' : convo.last_channel === 'email' ? 'bg-blue-500' : convo.last_channel === 'widget' ? 'bg-purple-500' : 'bg-orange-500'}
                                     `}>
-                                        {getIcon(convo.last_channel)}
+                                            {getIcon(convo.last_channel)}
+                                        </div>
+                                        <p className={`truncate flex-1 ${convo.status === 'needs_attention' ? 'font-medium text-slate-700' : ''}`}>
+                                            {convo.last_message_preview}
+                                        </p>
+                                        {convo.tags?.includes('needs_human') && (
+                                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 animate-pulse">
+                                                🙋 Needs You
+                                            </Badge>
+                                        )}
+                                        {convo.status === 'needs_attention' && (
+                                            <div className="h-2 w-2 rounded-full bg-blue-600 shrink-0" />
+                                        )}
                                     </div>
-                                    <p className={`truncate flex-1 ${convo.status === 'needs_attention' ? 'font-medium text-slate-700' : ''}`}>
-                                        {convo.last_message_preview}
-                                    </p>
-                                    {convo.tags?.includes('needs_human') && (
-                                        <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 animate-pulse">
-                                            🙋 Needs You
-                                        </Badge>
-                                    )}
-                                    {convo.status === 'needs_attention' && (
-                                        <div className="h-2 w-2 rounded-full bg-blue-600 shrink-0" />
-                                    )}
                                 </div>
-                            </div>
-                        ))
-                    )}
-                </ScrollArea>
+                            ))
+                        )}
+                    </ScrollArea>
+                </div>
             </div>
 
             {/* --- COLUMN 2: CHAT THREAD --- */}
-            <div className="flex-1 flex flex-col bg-white min-w-0 min-h-0">
+            <div className="flex-1 flex flex-col bg-white min-w-0 h-full overflow-hidden">
                 {selectedContact ? (
                     <>
                         {/* Header */}
@@ -833,7 +979,7 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                         </div>
 
                         {/* Messages Area */}
-                        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
+                        <div className="flex-1 min-h-0 overflow-y-auto p-6 bg-slate-50/30">
                             <div className="space-y-6 pb-4">
                                 {messages.map((msg, idx) => (
                                     <div key={msg.id || idx} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
@@ -972,24 +1118,27 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
             </div>
 
             {/* --- COLUMN 3: LEAD CONTEXT PANEL --- */}
-            {selectedContact && (
-                <LeadContextPanel
-                    contact={selectedContact}
-                    merchantId={merchantId}
-                    messages={messages}
-                    onResolve={handleResolve}
-                    onUpdate={(updates) => {
-                        // Update local state
-                        setConversations(prev => prev.map(c =>
-                            c.customer_id === selectedContact.customer_id
-                                ? { ...c, ...updates }
-                                : c
-                        ));
-                        setSelectedContact(prev => prev ? { ...prev, ...updates } : null);
-                    }}
-                />
-            )}
+            {
+                selectedContact && showSidebar && (
+                    <LeadContextPanel
+                        contact={selectedContact}
+                        merchantId={merchantId}
+                        messages={messages}
+                        onResolve={handleResolve}
+                        onClose={() => setShowSidebar(false)}
+                        onUpdate={(updates) => {
+                            // Update local state
+                            setConversations(prev => prev.map(c =>
+                                c.customer_id === selectedContact.customer_id
+                                    ? { ...c, ...updates }
+                                    : c
+                            ));
+                            setSelectedContact(prev => prev ? { ...prev, ...updates } : null);
+                        }}
+                    />
+                )
+            }
 
-        </div>
+        </div >
     );
 }

@@ -89,7 +89,7 @@ export default async function UnifiedInboxPage() {
     );
 
     return (
-        <div className="h-full">
+        <div className="h-full overflow-hidden">
             <InboxClient initialConversations={conversations} merchantId={merchantId} isAiEnabled={isAiEnabled} />
         </div>
     );

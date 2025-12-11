@@ -46,12 +46,12 @@ export default async function DashboardLayout({
     };
 
     return (
-        <div className="h-full relative">
+        <div className="h-screen overflow-hidden relative">
             <div className="hidden h-full md:flex md:flex-col md:fixed md:inset-y-0 z-[80]">
                 <Sidebar branding={branding} />
             </div>
             {/* Dynamic padding logic */}
-            <main className="md:pl-20 lg:pl-64 h-full bg-slate-50 transition-all duration-300" id="main-content">
+            <main className="md:pl-20 lg:pl-64 h-full overflow-auto bg-slate-50 transition-all duration-300" id="main-content">
                 {children}
             </main>
         </div>
