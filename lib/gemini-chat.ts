@@ -278,18 +278,34 @@ Remember: Sound like a helpful human, not an AI reading from a script.`;
  * Check if AI auto-reply is enabled for a merchant
  */
 export async function isAutoReplyEnabled(merchantId: string, channel: 'sms' | 'email' | 'widget'): Promise<boolean> {
-    const { data: automation } = await supabaseAdmin
+    console.log(`   [isAutoReplyEnabled] Checking for merchant ${merchantId}, channel: ${channel}`);
+
+    const { data: automation, error } = await supabaseAdmin
         .from('automations')
         .select('is_active, config')
         .eq('merchant_id', merchantId)
         .eq('type', 'ai_auto_reply')
         .single();
 
-    if (!automation?.is_active) return false;
+    if (error) {
+        console.log(`   [isAutoReplyEnabled] DB Error: ${error.message}`);
+        console.log(`   [isAutoReplyEnabled] This usually means no automation record exists yet`);
+        return false;
+    }
+
+    console.log(`   [isAutoReplyEnabled] Found automation record:`, JSON.stringify(automation));
+
+    if (!automation?.is_active) {
+        console.log(`   [isAutoReplyEnabled] automation.is_active = ${automation?.is_active} (not active)`);
+        return false;
+    }
 
     // Check if this channel is enabled in config
     const config = automation.config || {};
     const channels = config.channels || ['sms', 'email', 'widget'];
+
+    console.log(`   [isAutoReplyEnabled] Configured channels: ${JSON.stringify(channels)}`);
+    console.log(`   [isAutoReplyEnabled] Channel ${channel} included: ${channels.includes(channel)}`);
 
     return channels.includes(channel);
 }

@@ -9,20 +9,33 @@ const twilioClient = twilio(
 );
 
 export async function POST(request: Request) {
+    console.log("\n========================================");
+    console.log("📩 INCOMING SMS WEBHOOK");
+    console.log("========================================");
+
     try {
         const data = await request.formData();
         const from = data.get("From") as string; // Customer phone
         const to = data.get("To") as string;     // Your AI Number
         const body = data.get("Body") as string; // The Message
 
-        console.log(`📩 Incoming SMS from ${from} to ${to}: ${body}`);
+        console.log(`📩 SMS Details:`);
+        console.log(`   From: ${from}`);
+        console.log(`   To: ${to}`);
+        console.log(`   Body: ${body}`);
 
         // 1. Try to find the Merchant based on the AI Number
-        const { data: agent } = await supabaseAdmin
+        console.log(`\n🔍 Looking for agent with phone_number: "${to}"`);
+
+        const { data: agent, error: agentError } = await supabaseAdmin
             .from("ai_agents")
-            .select("merchant_id")
+            .select("merchant_id, phone_number")
             .eq("phone_number", to)
             .single();
+
+        console.log(`   Agent found: ${!!agent}`);
+        if (agentError) console.log(`   Agent lookup error: ${agentError.message}`);
+        if (agent) console.log(`   Agent merchant_id: ${agent.merchant_id}`);
 
         let merchantId = agent?.merchant_id;
 
@@ -91,10 +104,18 @@ export async function POST(request: Request) {
         }
 
         // 4. Check if AI Auto-Reply is enabled
+        console.log(`\n🤖 Checking AI Auto-Reply status for merchant: ${merchantId}`);
         const autoReplyEnabled = await isAutoReplyEnabled(merchantId, 'sms');
+        console.log(`   Auto-reply enabled: ${autoReplyEnabled}`);
 
         if (autoReplyEnabled) {
-            console.log(`🤖 AI Auto-Reply is enabled for ${merchantId}`);
+            console.log(`✅ AI Auto-Reply IS ENABLED - proceeding with reply generation`);
+        } else {
+            console.log(`⚠️ AI Auto-Reply is DISABLED or not configured`);
+            console.log(`   To enable: Go to Inbox and toggle 'AI Auto-Reply' switch ON`);
+        }
+
+        if (autoReplyEnabled) {
 
             // Get recent conversation history (last 5 messages)
             const { data: recentMessages } = await supabaseAdmin
@@ -173,6 +194,8 @@ export async function POST(request: Request) {
         }
 
         // 5. Return XML (Twilio expects XML response)
+        console.log(`\n✅ SMS webhook completed successfully`);
+        console.log("========================================\n");
         return new NextResponse("<Response></Response>", {
             headers: { "Content-Type": "text/xml" }
         });

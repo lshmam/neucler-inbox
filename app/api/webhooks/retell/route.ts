@@ -180,15 +180,27 @@ export async function POST(request: Request) {
             console.log("Analysis data:", dataToUpdate);
 
             // --- POST-CALL SMS FOLLOW-UP ---
+            // Check if we already sent SMS for this call (prevent duplicates)
+            const { data: existingLog } = await supabaseAdmin
+                .from("call_logs")
+                .select("sms_sent")
+                .eq("retell_call_id", retellCallId)
+                .single();
+
+            const alreadySentSms = existingLog?.sms_sent === true;
+            console.log(`   alreadySentSms: ${alreadySentSms}`);
+
             // Send SMS if call was successful OR if user talked back (from custom_analysis_data)
+            // BUT only if we haven't already sent SMS for this call
             const userTalkedBack = analysis.custom_analysis_data?.user_talked_back === true;
-            const shouldSendSms = (analysis.call_successful === true || userTalkedBack) && insertData.customer_phone;
+            const shouldSendSms = !alreadySentSms && (analysis.call_successful === true || userTalkedBack) && insertData.customer_phone;
 
             console.log("\n🔍 DEBUG - SMS decision:");
             console.log("   analysis.call_successful:", analysis.call_successful);
             console.log("   analysis.custom_analysis_data:", JSON.stringify(analysis.custom_analysis_data));
             console.log("   userTalkedBack:", userTalkedBack);
             console.log("   insertData.customer_phone:", insertData.customer_phone);
+            console.log("   alreadySentSms:", alreadySentSms);
             console.log("   shouldSendSms:", shouldSendSms);
 
             if (shouldSendSms) {
@@ -205,25 +217,30 @@ export async function POST(request: Request) {
 
                     const { data: profile } = await supabaseAdmin
                         .from("business_profiles")
-                        .select("booking_link")
+                        .select("booking_link, master_booking_url")
                         .eq("merchant_id", agent.merchant_id)
                         .single();
 
                     const businessName = merchant?.business_name || "us";
-                    const bookingLink = profile?.booking_link || "our website";
+                    // Use booking_link first, then master_booking_url as fallback
+                    const bookingLink = profile?.booking_link || profile?.master_booking_url || null;
 
                     let smsMessage: string;
 
                     // Check if we have a valid summary to work with
                     const hasSummary = analysis.call_summary && analysis.call_summary.trim().length > 10;
 
-                    // Detect if call was cut short (brief duration or unsuccessful)
-                    const callWasBrief = call.duration_ms && call.duration_ms < 30000; // Less than 30 seconds
-                    const callCutShort = !analysis.call_successful || callWasBrief;
+                    // FIXED: Only use call_successful to determine if call was cut short
+                    // duration_ms is not reliable in call_analyzed event
+                    const callCutShort = analysis.call_successful === false;
+
+                    console.log(`   hasSummary: ${hasSummary}`);
+                    console.log(`   call_successful: ${analysis.call_successful}`);
+                    console.log(`   callCutShort: ${callCutShort}`);
 
                     if (callCutShort) {
                         // Call was cut short - apologize and invite them to continue via text
-                        console.log("📱 Call was cut short, sending apology message");
+                        console.log("📱 Call was NOT successful, sending apology message");
                         smsMessage = `Hey! Sorry our call got cut short. Was there anything I could help you with? Feel free to text me back anytime. - ${businessName}`;
                     } else if (hasSummary) {
                         // Use Gemini to extract the main purpose/need from the call
@@ -252,25 +269,44 @@ Examples of good responses:
                             console.log("⚠️ AI summary failed, using default");
                         }
 
-                        // Check if caller wants to book/schedule
-                        const bookingKeywords = ['book', 'schedule', 'appointment', 'consult', 'visit', 'coming in', 'reservation'];
+                        // Check if caller wants to book/schedule - expanded keywords
+                        const bookingKeywords = [
+                            'book', 'booking', 'schedule', 'appointment', 'consult',
+                            'visit', 'coming in', 'reservation', 'link', 'estimate',
+                            'quote', 'pricing', 'available', 'slot', 'time'
+                        ];
+                        const summaryLower = (analysis.call_summary || '').toLowerCase();
                         const wantsBooking = bookingKeywords.some(k => customerNeed.includes(k)) ||
-                            bookingKeywords.some(k => (analysis.call_summary || '').toLowerCase().includes(k));
+                            bookingKeywords.some(k => summaryLower.includes(k));
 
-                        // Generate smart booking link if caller shows interest
-                        let bookingLinkText = "";
+                        console.log(`   Checking keywords in customerNeed: "${customerNeed}"`);
+
+                        console.log(`   wantsBooking: ${wantsBooking} (keywords found in need or summary)`);
+
+                        // Default booking link fallback
+                        const DEFAULT_BOOKING_LINK = "https://neucler.com/book";
+
                         if (wantsBooking) {
-                            try {
-                                const smartLink = await createSmartLinkServer(agent.merchant_id);
-                                bookingLinkText = ` Here's a link to book: ${smartLink}`;
-                                console.log(`🔗 Generated booking link for post-call SMS: ${smartLink}`);
-                            } catch (linkErr) {
-                                console.log("⚠️ Could not generate booking link:", linkErr);
-                            }
-                        }
+                            // User asked for booking - send JUST the link, keep it simple
+                            let finalBookingLink = DEFAULT_BOOKING_LINK;
 
-                        // Build a conversational SMS with optional booking link
-                        smsMessage = `Hey! Thanks for calling ${businessName}. Happy to help with ${customerNeed}!${bookingLinkText} Feel free to text me back if you have any questions. 😊`;
+                            try {
+                                console.log(`🔗 Attempting to generate smart booking link...`);
+                                finalBookingLink = await createSmartLinkServer(agent.merchant_id);
+                                console.log(`✅ Generated smart booking link: ${finalBookingLink}`);
+                            } catch (linkErr: any) {
+                                console.log(`⚠️ Smart link failed: ${linkErr.message}`);
+                                // Use configured booking link or default
+                                finalBookingLink = bookingLink || DEFAULT_BOOKING_LINK;
+                                console.log(`📎 Using fallback: ${finalBookingLink}`);
+                            }
+
+                            // Simple, direct message with just the link
+                            smsMessage = `Here's your booking link: ${finalBookingLink}`;
+                        } else {
+                            // Normal follow-up message without booking link
+                            smsMessage = `Hey! Thanks for calling ${businessName}. Happy to help with ${customerNeed}! Feel free to text me back if you have any questions. 😊`;
+                        }
                     } else {
                         // No summary available - send friendly fallback
                         console.log("⚠️ No summary available, using fallback SMS message");
@@ -278,13 +314,26 @@ Examples of good responses:
                     }
 
                     // Send via Twilio
+                    const fromNumber = agent.phone_number || call.to_number;
+                    console.log(`\n📱 Sending post-call SMS via Twilio:`);
+                    console.log(`   From: ${fromNumber}`);
+                    console.log(`   To: ${insertData.customer_phone}`);
+                    console.log(`   Message (${smsMessage.length} chars): ${smsMessage.substring(0, 100)}...`);
+
                     await twilioClient.messages.create({
                         body: smsMessage,
-                        from: agent.phone_number || call.to_number,
+                        from: fromNumber,
                         to: insertData.customer_phone
                     });
 
-                    console.log(`✅ Post-call SMS sent to ${insertData.customer_phone}`);
+                    console.log(`✅ Post-call SMS SENT successfully to ${insertData.customer_phone}`);
+
+                    // Mark this call as SMS sent to prevent duplicates
+                    await supabaseAdmin
+                        .from("call_logs")
+                        .update({ sms_sent: true })
+                        .eq("retell_call_id", retellCallId);
+                    console.log(`📝 Marked call ${retellCallId} as sms_sent=true`);
 
                     // Save to messages table
                     await supabaseAdmin.from("messages").insert({
