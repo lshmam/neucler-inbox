@@ -5,7 +5,8 @@ import { formatDistanceToNow } from "date-fns";
 import {
     Search, Phone, Mail, MessageSquare, CheckCircle2,
     MoreHorizontal, Send, Mic, Clock, Loader2, Bot, Archive, Sparkles, BookOpen,
-    Pencil, Check, X, Plus, Link2, ChevronDown, ChevronUp, ExternalLink, Copy, CalendarPlus
+    Pencil, Check, X, Plus, Link2, ChevronDown, ChevronUp, ExternalLink, Copy, CalendarPlus,
+    ArrowLeft
 } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -851,7 +852,11 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
         <div className="flex h-full bg-white border-t overflow-hidden">
 
             {/* --- COLUMN 1: CONVERSATION LIST --- */}
-            <div className="w-full md:w-[350px] border-r flex flex-col bg-slate-50/50 shrink-0 h-full overflow-hidden">
+            {/* On mobile: hide when a contact is selected. On desktop: always show */}
+            <div className={`
+                w-full md:w-[350px] border-r flex flex-col bg-slate-50/50 shrink-0 h-full overflow-hidden
+                ${selectedContact ? 'hidden md:flex' : 'flex'}
+            `}>
                 {/* Header Section */}
                 <div className="p-4 space-y-4 shrink-0">
                     <div className="flex items-center justify-between">
@@ -962,12 +967,25 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
             </div>
 
             {/* --- COLUMN 2: CHAT THREAD --- */}
-            <div className="flex-1 flex flex-col bg-white min-w-0 h-full overflow-hidden">
+            {/* On mobile: show only when contact selected (full screen). On desktop: always show */}
+            <div className={`
+                flex-1 flex flex-col bg-white min-w-0 h-full overflow-hidden
+                ${selectedContact ? 'flex' : 'hidden md:flex'}
+            `}>
                 {selectedContact ? (
                     <>
                         {/* Header */}
-                        <div className="h-16 border-b flex items-center justify-between px-6 shrink-0">
+                        <div className="h-16 border-b flex items-center justify-between px-4 md:px-6 shrink-0">
                             <div className="flex items-center gap-3">
+                                {/* Back button - mobile only */}
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="md:hidden h-8 w-8 mr-1"
+                                    onClick={() => setSelectedContact(null)}
+                                >
+                                    <ArrowLeft className="h-5 w-5" />
+                                </Button>
                                 <Avatar>
                                     <AvatarFallback>{selectedContact.display_name[0]}</AvatarFallback>
                                 </Avatar>

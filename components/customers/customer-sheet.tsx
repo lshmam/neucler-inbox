@@ -109,7 +109,7 @@ export function CustomerSheet({ customer, isOpen, onClose }: CustomerSheetProps)
 
     return (
         <Sheet open={isOpen} onOpenChange={onClose}>
-            <SheetContent className="w-[480px] sm:w-[540px] flex flex-col gap-0 p-0 bg-white sm:max-w-[540px]">
+            <SheetContent className="w-full sm:w-[480px] md:w-[540px] flex flex-col gap-0 p-0 bg-white sm:max-w-[540px]">
                 {/* Hidden title for accessibility */}
                 <VisuallyHidden>
                     <SheetTitle>Customer Details: {customer.first_name} {customer.last_name}</SheetTitle>
