@@ -57,7 +57,8 @@ interface SidebarProps {
         name: string;
         logo: string | null;
         color: string;
-    }
+    };
+    onNavigate?: () => void;  // Called when a nav item is clicked (for mobile)
 }
 
 const DEFAULT_BRANDING = {
@@ -66,7 +67,7 @@ const DEFAULT_BRANDING = {
     color: "blue"
 };
 
-export function Sidebar({ branding = DEFAULT_BRANDING }: SidebarProps) {
+export function Sidebar({ branding = DEFAULT_BRANDING, onNavigate }: SidebarProps) {
     const pathname = usePathname();
 
     // Keep track of open menus
@@ -132,6 +133,7 @@ export function Sidebar({ branding = DEFAULT_BRANDING }: SidebarProps) {
                                     <Link
                                         key={item.href}
                                         href={item.href}
+                                        onClick={onNavigate}
                                         className={cn(
                                             "group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
                                             isActive
