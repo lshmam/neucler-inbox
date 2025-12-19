@@ -21,7 +21,9 @@ import {
     ChevronDown,
     User,
     Megaphone,
-    Users2
+    Users2,
+    Ticket,
+    BookOpen
 } from "lucide-react";
 
 const NAV_SECTIONS = [
@@ -29,8 +31,9 @@ const NAV_SECTIONS = [
         title: "Overview",
         items: [
             { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-            // { label: "Analytics", href: "/analytics", icon: TrendingUp },
+            { label: "Performance", href: "/performance", icon: Trophy },
             { label: "Inbox", href: "/inbox", icon: MessageSquare },
+            { label: "Tickets", href: "/tickets", icon: Ticket },
             { label: "Customers", href: "/customers", icon: User },
         ]
     },
@@ -39,6 +42,7 @@ const NAV_SECTIONS = [
         items: [
             { label: "Marketing", href: "/marketing", icon: Megaphone },
             { label: "AI Agent", href: "/ai-agent", icon: Bot },
+            { label: "Knowledge Base", href: "/knowledge-base", icon: BookOpen },
             { label: "Automations", href: "/automations", icon: Zap },
             // { label: "Reputation", href: "/reviews", icon: Star },
         ]

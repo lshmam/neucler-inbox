@@ -98,7 +98,7 @@ export default function OnboardingPage() {
     };
 
     return (
-        <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-4">
+        <div className="min-h-screen bg-white flex items-center justify-center p-4">
             <Script
                 src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
                 strategy="lazyOnload"
@@ -110,7 +110,7 @@ export default function OnboardingPage() {
                 {[1, 2, 3].map((s) => (
                     <div
                         key={s}
-                        className={`h-2 w-8 rounded-full transition-all ${step >= s ? "bg-blue-500" : "bg-slate-600"}`}
+                        className={`h-2 w-8 rounded-full transition-all ${step >= s ? "bg-black" : "bg-gray-300"}`}
                     />
                 ))}
             </div>
@@ -288,7 +288,7 @@ export default function OnboardingPage() {
                             <Button variant="ghost" onClick={() => setStep(2)}>
                                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
                             </Button>
-                            <Button onClick={handleSaveProfile} disabled={isSaving} className="bg-green-600 hover:bg-green-700">
+                            <Button onClick={handleSaveProfile} disabled={isSaving} className="bg-black hover:bg-gray-800 text-white">
                                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Save & Continue
                             </Button>

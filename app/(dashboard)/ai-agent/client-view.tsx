@@ -24,7 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { LANGUAGE_OPTIONS } from "@/app/(dashboard)/ai-agent/language-data";
-import { ArticlesManager } from "@/components/knowledge-base/articles-manager";
+// ArticlesManager moved to dedicated /knowledge-base page
 import { toast } from "sonner";
 
 const supabase = createClient(
@@ -267,12 +267,9 @@ export function AIAgentClientView({ initialAgents, initialCallLogs, merchantId, 
 
             {/* MAIN CONTENT TABS */}
             <Tabs defaultValue="history" className="space-y-4">
-                <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-grid">
+                <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:inline-grid">
                     <TabsTrigger value="history" className="gap-2">
                         <Clock className="h-4 w-4" /> History
-                    </TabsTrigger>
-                    <TabsTrigger value="knowledge" className="gap-2">
-                        <Brain className="h-4 w-4" /> Knowledge Base
                     </TabsTrigger>
                     <TabsTrigger value="capabilities" className="gap-2">
                         <Settings2 className="h-4 w-4" /> Capabilities
@@ -368,18 +365,7 @@ export function AIAgentClientView({ initialAgents, initialCallLogs, merchantId, 
                     </Card>
                 </TabsContent>
 
-                {/* TAB 2: KNOWLEDGE BASE */}
-                <TabsContent value="knowledge" className="space-y-6">
-
-                    {/* Articles Manager */}
-                    <div className="space-y-2">
-                        <h3 className="text-lg font-medium">Knowledge & Services</h3>
-                        <p className="text-sm text-muted-foreground">
-                            Add Q&A articles, services, and policies. The AI uses these to answer customer questions accurately.
-                        </p>
-                        <ArticlesManager initialArticles={knowledgeBase.articles} />
-                    </div>
-                </TabsContent>
+                {/* Knowledge Base now has its own page at /knowledge-base */}
 
                 {/* TAB 3: CAPABILITIES */}
                 <TabsContent value="capabilities" className="space-y-6">
@@ -487,7 +473,7 @@ export function AIAgentClientView({ initialAgents, initialCallLogs, merchantId, 
                                     <p className="text-xs text-muted-foreground flex items-start gap-2">
                                         <Info className="h-4 w-4 shrink-0 mt-0.5" />
                                         SMS auto-replies use the same Knowledge Base as Voice.
-                                        Update your articles in the Knowledge Base tab to improve responses.
+                                        <a href="/knowledge-base" className="text-blue-600 hover:underline">Manage your Knowledge Base →</a>
                                     </p>
                                 </div>
 

@@ -103,6 +103,52 @@ export async function POST(request: Request) {
             console.log(`✅ Inbound SMS saved to database`);
         }
 
+        // 3b. Create or find ticket for this SMS conversation
+        if (customerId) {
+            // Check if there's an existing open SMS ticket for this customer
+            const { data: existingTicket } = await supabaseAdmin
+                .from("tickets")
+                .select("id")
+                .eq("merchant_id", merchantId)
+                .eq("customer_id", customerId)
+                .eq("source", "sms")
+                .in("status", ["open", "in_progress", "pending"])
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .single();
+
+            if (existingTicket) {
+                console.log(`📋 Found existing SMS ticket: ${existingTicket.id}`);
+                // Update ticket timestamp to show new activity
+                await supabaseAdmin
+                    .from("tickets")
+                    .update({ updated_at: new Date().toISOString() })
+                    .eq("id", existingTicket.id);
+            } else {
+                // Create new ticket for this SMS conversation
+                const newTicketId = crypto.randomUUID();
+                const { error: ticketError } = await supabaseAdmin
+                    .from("tickets")
+                    .insert({
+                        id: newTicketId,
+                        merchant_id: merchantId,
+                        customer_id: customerId,
+                        title: `SMS from ${from}`,
+                        description: body.substring(0, 200) + (body.length > 200 ? '...' : ''),
+                        status: "open",
+                        priority: "medium",
+                        source: "sms",
+                        resolution_channel: "sms"
+                    });
+
+                if (ticketError) {
+                    console.warn("⚠️ Failed to create SMS ticket:", ticketError.message);
+                } else {
+                    console.log(`🎫 New SMS ticket created: ${newTicketId}`);
+                }
+            }
+        }
+
         // 4. Check if AI Auto-Reply is enabled
         console.log(`\n🤖 Checking AI Auto-Reply status for merchant: ${merchantId}`);
         const autoReplyEnabled = await isAutoReplyEnabled(merchantId, 'sms');

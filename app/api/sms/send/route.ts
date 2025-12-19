@@ -14,6 +14,19 @@ export async function POST(request: Request) {
         const body = await request.json();
         const { name, message, audience, phone } = body;
 
+        // Look up merchant's phone number from ai_agents table (MULTI-TENANT)
+        const { data: agent } = await supabaseAdmin
+            .from("ai_agents")
+            .select("phone_number")
+            .eq("merchant_id", merchantId)
+            .single();
+
+        const fromNumber = agent?.phone_number || process.env.TWILIO_PHONE_NUMBER;
+
+        if (!fromNumber) {
+            return NextResponse.json({ error: "No phone number configured for this account" }, { status: 400 });
+        }
+
         // 1. Determine Targets
         let targets = [];
 
@@ -41,11 +54,11 @@ export async function POST(request: Request) {
         const promises = targets.map(async (c) => {
             const personalizedMsg = message.replace("{name}", c.first_name);
 
-            // A. Send Text
+            // A. Send Text using merchant's phone number
             try {
                 await client.messages.create({
                     body: personalizedMsg,
-                    from: process.env.TWILIO_PHONE_NUMBER,
+                    from: fromNumber,
                     to: c.phone_number
                 });
             } catch (err) {

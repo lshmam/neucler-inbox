@@ -136,17 +136,17 @@ export default function OnboardingWizard() {
 
 
     return (
-        <div className="min-h-screen bg-[#0F172A] flex items-center justify-center p-4 text-slate-50">
+        <div className="min-h-screen bg-white flex items-center justify-center p-4 text-gray-900">
             <div className="max-w-3xl w-full space-y-8">
 
                 {/* Progress Bar */}
                 <div className="flex justify-between items-center px-10">
                     {[1, 2, 3, 4].map((i) => (
                         <div key={i} className="flex flex-col items-center gap-2">
-                            <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${step >= i ? "bg-[#906CDD] text-white" : "bg-slate-800 text-slate-500"}`}>
+                            <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${step >= i ? "bg-black text-white" : "bg-gray-200 text-gray-500"}`}>
                                 {i}
                             </div>
-                            <span className="text-[10px] uppercase tracking-wider text-slate-500">
+                            <span className="text-[10px] uppercase tracking-wider text-gray-500">
                                 {i === 1 ? "Voice" : i === 2 ? "Brain" : i === 3 ? "Phone" : "Launch"}
                             </span>
                         </div>
@@ -155,7 +155,7 @@ export default function OnboardingWizard() {
 
                 {/* STEP 1: IDENTITY & VOICE */}
                 {step === 1 && (
-                    <Card className="bg-slate-900 border-slate-800">
+                    <Card className="bg-white border-gray-200">
                         <CardHeader>
                             <CardTitle>Create your AI Persona</CardTitle>
                             <CardDescription>Give your agent a name and a voice.</CardDescription>
@@ -163,17 +163,17 @@ export default function OnboardingWizard() {
                         <CardContent className="space-y-6">
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label className="text-slate-300">Business Name</Label>
+                                    <Label className="text-gray-700">Business Name</Label>
                                     <Input
                                         value={businessName}
                                         onChange={e => setBusinessName(e.target.value)}
-                                        className="bg-slate-950 border-slate-800 text-white"
+                                        className="bg-white border-gray-300 text-gray-900"
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-slate-300">Industry</Label>
+                                    <Label className="text-gray-700">Industry</Label>
                                     <Select value={industry} onValueChange={setIndustry}>
-                                        <SelectTrigger className="bg-slate-950 border-slate-800 text-white">
+                                        <SelectTrigger className="bg-white border-gray-300 text-gray-900">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -187,25 +187,25 @@ export default function OnboardingWizard() {
                             </div>
 
                             <div className="space-y-3">
-                                <Label className="text-slate-300">Choose a Voice</Label>
+                                <Label className="text-gray-700">Choose a Voice</Label>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     {VOICES.map(voice => (
                                         <div
                                             key={voice.id}
                                             onClick={() => setVoiceId(voice.id)}
-                                            className={`p-4 rounded-lg border cursor-pointer transition-all ${voiceId === voice.id ? "bg-[#906CDD]/10 border-[#906CDD]" : "bg-slate-950 border-slate-800 hover:border-slate-600"}`}
+                                            className={`p-4 rounded-lg border cursor-pointer transition-all ${voiceId === voice.id ? "bg-gray-100 border-black" : "bg-white border-gray-200 hover:border-gray-400"}`}
                                         >
                                             <div className="flex justify-between items-start mb-2">
                                                 <div className="font-semibold">{voice.name}</div>
-                                                {voiceId === voice.id && <CheckCircle2 className="h-4 w-4 text-[#906CDD]" />}
+                                                {voiceId === voice.id && <CheckCircle2 className="h-4 w-4 text-black" />}
                                             </div>
-                                            <div className="text-xs text-slate-500 mb-3">{voice.gender} • {voice.accent}</div>
+                                            <div className="text-xs text-gray-500 mb-3">{voice.gender} • {voice.accent}</div>
 
                                             {/* Audio Preview Button */}
                                             <Button
                                                 size="sm"
                                                 variant="secondary"
-                                                className="w-full h-8 text-xs bg-slate-800 hover:bg-slate-700 text-white"
+                                                className="w-full h-8 text-xs bg-gray-100 hover:bg-gray-200 text-gray-900"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     // Logic to play audio sample
@@ -219,14 +219,14 @@ export default function OnboardingWizard() {
                                     ))}
                                 </div>
                                 {/* Interactive Preview */}
-                                <div className="mt-4 p-4 bg-slate-950 rounded border border-slate-800 flex items-center justify-between">
-                                    <p className="text-sm text-slate-400 italic">"Hi, thanks for calling {businessName}. How can I help you?"</p>
-                                    <Button size="sm" variant="ghost" className="text-[#906CDD]">Play Greeting</Button>
+                                <div className="mt-4 p-4 bg-gray-50 rounded border border-gray-200 flex items-center justify-between">
+                                    <p className="text-sm text-gray-500 italic">"Hi, thanks for calling {businessName}. How can I help you?"</p>
+                                    <Button size="sm" variant="ghost" className="text-black">Play Greeting</Button>
                                 </div>
                             </div>
                         </CardContent>
                         <CardFooter>
-                            <Button className="w-full bg-[#906CDD] hover:bg-[#7a5bb5]" onClick={generatePrompt} disabled={loading}>
+                            <Button className="w-full bg-black hover:bg-gray-800 text-white" onClick={generatePrompt} disabled={loading}>
                                 {loading ? <Loader2 className="animate-spin mr-2" /> : "Next: Configure Behavior"} <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
                         </CardFooter>
@@ -235,7 +235,7 @@ export default function OnboardingWizard() {
 
                 {/* STEP 2: SYSTEM PROMPT & TEST */}
                 {step === 2 && (
-                    <Card className="bg-slate-900 border-slate-800">
+                    <Card className="bg-white border-gray-200">
                         <CardHeader>
                             <CardTitle>Train your Agent</CardTitle>
                             <CardDescription>We generated this prompt based on your industry. Tweak it to fit your style.</CardDescription>
@@ -243,26 +243,26 @@ export default function OnboardingWizard() {
                         <CardContent className="space-y-6">
                             <div className="space-y-2">
                                 <div className="flex justify-between items-center">
-                                    <Label className="text-slate-300">System Prompt</Label>
-                                    <Button variant="ghost" size="sm" className="text-xs text-[#906CDD]" onClick={generatePrompt}>
+                                    <Label className="text-gray-700">System Prompt</Label>
+                                    <Button variant="ghost" size="sm" className="text-xs text-black" onClick={generatePrompt}>
                                         <Sparkles className="h-3 w-3 mr-1" /> Regenerate
                                     </Button>
                                 </div>
                                 <Textarea
-                                    className="min-h-[200px] bg-slate-950 border-slate-800 text-slate-200 font-mono text-sm leading-relaxed"
+                                    className="min-h-[200px] bg-white border-gray-300 text-gray-900 font-mono text-sm leading-relaxed"
                                     value={systemPrompt}
                                     onChange={(e) => setSystemPrompt(e.target.value)}
                                 />
                             </div>
 
-                            <div className="bg-slate-950 p-6 rounded-xl border border-slate-800 text-center">
-                                <h3 className="text-white font-medium mb-2">Test in Browser</h3>
-                                <p className="text-sm text-slate-400 mb-4">Talk to your agent right now to see how it handles questions.</p>
+                            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 text-center">
+                                <h3 className="text-gray-900 font-medium mb-2">Test in Browser</h3>
+                                <p className="text-sm text-gray-500 mb-4">Talk to your agent right now to see how it handles questions.</p>
 
                                 <Button
                                     size="lg"
                                     variant={isWebCallActive ? "destructive" : "default"}
-                                    className={`w-48 ${isWebCallActive ? "" : "bg-white text-slate-900 hover:bg-gray-200"}`}
+                                    className={`w-48 ${isWebCallActive ? "" : "bg-black text-white hover:bg-gray-800"}`}
                                     onClick={toggleWebCall}
                                 >
                                     {isWebCallActive ? (
@@ -275,8 +275,8 @@ export default function OnboardingWizard() {
                             </div>
                         </CardContent>
                         <CardFooter className="flex justify-between">
-                            <Button variant="ghost" onClick={() => setStep(1)} className="text-slate-400">Back</Button>
-                            <Button className="bg-[#906CDD] hover:bg-[#7a5bb5]" onClick={() => setStep(3)}>
+                            <Button variant="ghost" onClick={() => setStep(1)} className="text-gray-500">Back</Button>
+                            <Button className="bg-black hover:bg-gray-800 text-white" onClick={() => setStep(3)}>
                                 Next: Get Phone Number
                             </Button>
                         </CardFooter>
@@ -285,7 +285,7 @@ export default function OnboardingWizard() {
 
                 {/* STEP 3: PHONE NUMBER */}
                 {step === 3 && (
-                    <Card className="bg-slate-900 border-slate-800">
+                    <Card className="bg-white border-gray-200">
                         <CardHeader>
                             <CardTitle>Claim your Number</CardTitle>
                             <CardDescription>Search for a local number to connect to your AI.</CardDescription>
@@ -294,7 +294,7 @@ export default function OnboardingWizard() {
                             <div className="flex gap-4">
                                 <Input
                                     placeholder="Area Code (e.g. 415)"
-                                    className="bg-slate-950 border-slate-800 text-white w-40"
+                                    className="bg-white border-gray-300 text-gray-900 w-40"
                                     value={areaCode}
                                     onChange={e => setAreaCode(e.target.value)}
                                     maxLength={3}
@@ -312,10 +312,10 @@ export default function OnboardingWizard() {
                                             <div
                                                 key={n.phoneNumber}
                                                 onClick={() => setSelectedPhoneNumber(n.phoneNumber)}
-                                                className={`p-3 rounded border cursor-pointer flex justify-between items-center ${selectedPhoneNumber === n.phoneNumber ? "bg-[#906CDD]/20 border-[#906CDD] text-white" : "bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-600"}`}
+                                                className={`p-3 rounded border cursor-pointer flex justify-between items-center ${selectedPhoneNumber === n.phoneNumber ? "bg-gray-100 border-black text-gray-900" : "bg-white border-gray-200 text-gray-600 hover:border-gray-400"}`}
                                             >
                                                 <span className="font-mono text-lg">{n.friendlyName}</span>
-                                                {selectedPhoneNumber === n.phoneNumber && <CheckCircle2 className="h-5 w-5 text-[#906CDD]" />}
+                                                {selectedPhoneNumber === n.phoneNumber && <CheckCircle2 className="h-5 w-5 text-black" />}
                                             </div>
                                         ))}
                                     </div>
@@ -323,9 +323,9 @@ export default function OnboardingWizard() {
                             )}
                         </CardContent>
                         <CardFooter className="flex justify-between">
-                            <Button variant="ghost" onClick={() => setStep(2)} className="text-slate-400">Back</Button>
+                            <Button variant="ghost" onClick={() => setStep(2)} className="text-gray-500">Back</Button>
                             <Button
-                                className="bg-[#906CDD] hover:bg-[#7a5bb5]"
+                                className="bg-black hover:bg-gray-800 text-white"
                                 onClick={buyNumber}
                                 disabled={!selectedPhoneNumber || loading}
                             >
@@ -337,12 +337,12 @@ export default function OnboardingWizard() {
 
                 {/* STEP 4: SUCCESS */}
                 {step === 4 && (
-                    <div className="text-center space-y-6 py-10 animate-in zoom-in duration-500">
+                    <div className="text-center space-y-6 py-10 animate-in zoom-in duration-500 text-gray-900">
                         <div className="mx-auto h-24 w-24 bg-green-500/20 rounded-full flex items-center justify-center">
                             <CheckCircle2 className="h-12 w-12 text-green-500" />
                         </div>
-                        <h1 className="text-4xl font-bold text-white">You are Live!</h1>
-                        <p className="text-slate-400 max-w-md mx-auto">
+                        <h1 className="text-4xl font-bold text-gray-900">You are Live!</h1>
+                        <p className="text-gray-500 max-w-md mx-auto">
                             Your AI Agent is now active on <strong>{selectedPhoneNumber}</strong>.
                             It will handle calls according to your \"{industry}\" playbook.
                         </p>
@@ -350,7 +350,7 @@ export default function OnboardingWizard() {
                             <Button variant="outline" onClick={() => window.open(`tel:${selectedPhoneNumber}`)}>
                                 <Phone className="mr-2 h-4 w-4" /> Call it now
                             </Button>
-                            <Button className="bg-[#906CDD] hover:bg-[#7a5bb5]" onClick={() => router.push("/dashboard")}>
+                            <Button className="bg-black hover:bg-gray-800 text-white" onClick={() => router.push("/dashboard")}>
                                 Go to Dashboard
                             </Button>
                         </div>

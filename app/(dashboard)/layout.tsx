@@ -39,6 +39,15 @@ export default async function DashboardLayout({
         .eq("merchant_id", merchant.platform_merchant_id)
         .single();
 
+    // 5. Fetch Knowledge Base Articles for sidebar
+    const { data: kbArticles } = await supabase
+        .from("knowledge_base_articles")
+        .select("id, title, content, category")
+        .eq("merchant_id", user.id)
+        .eq("is_published", true)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
     const branding = {
         name: merchant.business_name || "My Business",
         logo: profile?.logo_url || null,
@@ -46,7 +55,7 @@ export default async function DashboardLayout({
     };
 
     return (
-        <DashboardShell branding={branding}>
+        <DashboardShell branding={branding} knowledgeBaseArticles={kbArticles || []}>
             {children}
         </DashboardShell>
     );

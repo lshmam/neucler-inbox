@@ -6,7 +6,7 @@ import {
     Search, Phone, Mail, MessageSquare, CheckCircle2,
     MoreHorizontal, Send, Mic, Clock, Loader2, Bot, Archive, Sparkles, BookOpen,
     Pencil, Check, X, Plus, Link2, ChevronDown, ChevronUp, ExternalLink, Copy, CalendarPlus,
-    ArrowLeft
+    ArrowLeft, Ticket
 } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -534,6 +534,41 @@ function LeadContextPanel({ contact, merchantId, onUpdate, onResolve, onClose, m
                         Full Profile
                     </Button>
                 </div>
+
+                {/* Create Ticket Button */}
+                <Button
+                    variant="outline"
+                    className="w-full gap-2 border-blue-300 text-blue-600 hover:bg-blue-50 hover:text-blue-700 h-9 text-sm"
+                    onClick={async () => {
+                        try {
+                            const lastInbound = [...messages].reverse().find(m => m.direction === 'inbound');
+                            const ticketTitle = lastInbound?.content?.substring(0, 100) || `Support request from ${contact.display_name}`;
+
+                            const res = await fetch("/api/tickets", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    title: ticketTitle,
+                                    description: `Conversation converted to ticket.\n\nCustomer: ${contact.display_name}\nContact: ${contact.contact_point}\nChannel: ${contact.last_channel}`,
+                                    customer_id: contact.customer_id,
+                                    source: contact.last_channel || 'chat',
+                                    priority: 'medium'
+                                })
+                            });
+
+                            if (res.ok) {
+                                toast.success("Ticket created! View in Tickets page.");
+                            } else {
+                                throw new Error("Failed to create ticket");
+                            }
+                        } catch (error) {
+                            toast.error("Failed to create ticket");
+                        }
+                    }}
+                >
+                    <Ticket className="h-4 w-4" />
+                    Create Ticket
+                </Button>
             </div>
 
             {/* CUSTOMER SHEET */}

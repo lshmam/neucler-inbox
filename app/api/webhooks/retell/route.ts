@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import twilio from "twilio";
 import { createSmartLinkServer } from "@/app/actions/links-server";
+import { analyzeCall } from "@/services/quality-scoring";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const twilioClient = twilio(
@@ -148,7 +149,6 @@ export async function POST(request: Request) {
 
                     if (customerError) {
                         console.warn('⚠️ Failed to create customer:', customerError.message);
-                        // Don't throw - continue processing the call even if customer creation fails
                     } else {
                         console.log(`✅ New customer created successfully! ID: ${newCustomerId}`);
                     }
@@ -158,9 +158,69 @@ export async function POST(request: Request) {
             }
         } catch (customerCreationError: any) {
             console.warn('⚠️ Customer creation check failed:', customerCreationError.message);
-            // Don't throw - continue processing webhook even if customer creation fails
         }
         // --- END AUTO-CREATE CUSTOMER ---
+
+        // --- AUTO-CREATE TICKET FOR THIS CALL ---
+        let ticketId: string | null = null;
+        try {
+            const customerPhone = insertData.customer_phone;
+
+            // Check if a ticket already exists for this call
+            const { data: existingTicket } = await supabaseAdmin
+                .from('tickets')
+                .select('id')
+                .eq('call_id', retellCallId)
+                .single();
+
+            if (existingTicket) {
+                ticketId = existingTicket.id;
+                console.log(`📋 Existing ticket found for call: ${ticketId}`);
+            } else {
+                // Find the customer ID
+                let customerId: string | null = null;
+                if (customerPhone) {
+                    const { data: customer } = await supabaseAdmin
+                        .from('customers')
+                        .select('id')
+                        .eq('merchant_id', agent.merchant_id)
+                        .eq('phone_number', customerPhone)
+                        .single();
+                    customerId = customer?.id || null;
+                }
+
+                // Create a new ticket for this call
+                const newTicketId = crypto.randomUUID();
+                const ticketTitle = customerPhone
+                    ? `Phone Call from ${customerPhone}`
+                    : 'Incoming Phone Call';
+
+                const { error: ticketError } = await supabaseAdmin
+                    .from('tickets')
+                    .insert({
+                        id: newTicketId,
+                        merchant_id: agent.merchant_id,
+                        customer_id: customerId,
+                        title: ticketTitle,
+                        description: `Inbound call received. Waiting for call analysis...`,
+                        status: 'open',
+                        priority: 'medium',
+                        source: 'phone',
+                        call_id: retellCallId,
+                        assigned_to: agent.id,
+                    });
+
+                if (ticketError) {
+                    console.warn('⚠️ Failed to create ticket:', ticketError.message);
+                } else {
+                    ticketId = newTicketId;
+                    console.log(`🎫 New ticket created for call: ${ticketId}`);
+                }
+            }
+        } catch (ticketCreationError: any) {
+            console.warn('⚠️ Ticket creation check failed:', ticketCreationError.message);
+        }
+        // --- END AUTO-CREATE TICKET ---
 
         // 3. Prepare an object for the UPDATE.
         let dataToUpdate: any = {};
@@ -352,6 +412,25 @@ Examples of good responses:
                 }
             }
             // --- END POST-CALL SMS ---
+
+            // --- TRIGGER QUALITY SCORING FOR THIS CALL ---
+            if (ticketId && call.transcript_object && call.transcript_object.length > 0) {
+                console.log(`\n📊 Triggering quality analysis for ticket: ${ticketId}`);
+                // Fire-and-forget: Don't wait for analysis to complete
+                analyzeCall(ticketId, call.transcript_object, 'phone').then(result => {
+                    if (result.success) {
+                        console.log(`✅ Quality analysis complete for ticket ${ticketId}`);
+                        console.log(`   Outcome: ${result.outcome}, Auto-resolved: ${result.autoResolved}`);
+                    } else {
+                        console.error(`❌ Quality analysis failed for ticket ${ticketId}:`, result.error);
+                    }
+                }).catch(err => {
+                    console.error(`❌ Quality analysis error for ticket ${ticketId}:`, err);
+                });
+            } else {
+                console.log(`⏭️ Skipping quality analysis - no ticket (${ticketId}) or transcript`);
+            }
+            // --- END QUALITY SCORING ---
         }
 
         if (eventType === "call_ended") {
