@@ -68,98 +68,6 @@ interface Conversation {
     pastTickets?: { date: string; subject: string; status: string }[];
 }
 
-// ============= MOCK DATA =============
-const MOCK_CONVERSATIONS: Conversation[] = [
-    {
-        id: "conv-1",
-        customerId: "cust-1",
-        customerName: "Marcus Johnson",
-        customerPhone: "+1 (555) 234-5678",
-        vehicle: { year: "2018", make: "Ford", model: "F-150", vin: "1FTEW1EP5JFA88829" },
-        ltv: 4200,
-        lastVisit: "3 months ago",
-        unread: true,
-        lastMessageAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-        ticket: {
-            id: "tkt-1",
-            number: 1024,
-            subject: "Brakes Squeaking - Front Pads",
-            status: "open",
-            priority: "high",
-            assignee: "Mike",
-            createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString()
-        },
-        messages: [
-            { id: "m1", type: "customer", content: "Hey, my truck's brakes have been making a grinding noise for the past few days. Getting worse.", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString() },
-            { id: "m2", type: "system", content: "Ticket #1024 Created by Mike", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString() },
-            { id: "m3", type: "agent", content: "Hi Marcus! Sorry to hear about the brakes. That grinding sound is definitely something we should look at right away. Can you bring it in today or tomorrow morning?", sender: "Mike", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString() },
-            { id: "m4", type: "customer", content: "Tomorrow at 9am would work for me.", timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString() },
-            { id: "m5", type: "internal", content: "Likely needs front pads + rotors. Check for caliper slide pin issues too - common on F-150s.", sender: "Mike", timestamp: new Date(Date.now() - 1000 * 60 * 20).toISOString() },
-            { id: "m6", type: "agent", content: "Perfect, I've got you down for 9am tomorrow. We'll do a full brake inspection. Plan for about 2 hours if we need to do the work.", sender: "Mike", timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString() },
-        ],
-        pastTickets: [
-            { date: "Oct 12, 2024", subject: "Oil Change + Tire Rotation", status: "Closed" },
-            { date: "Jul 8, 2024", subject: "A/C Not Blowing Cold", status: "Closed" },
-        ]
-    },
-    {
-        id: "conv-2",
-        customerId: "cust-2",
-        customerName: "Jennifer Lee",
-        customerPhone: "+1 (555) 876-5432",
-        vehicle: { year: "2021", make: "Jeep", model: "Wrangler", color: "Red" },
-        ltv: 850,
-        lastVisit: "6 months ago",
-        unread: true,
-        lastMessageAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-        deal: {
-            id: "deal-1",
-            title: "4\" Lift Kit + 35\" Tires",
-            stage: "quote_sent",
-            value: 4800
-        },
-        messages: [
-            { id: "m7", type: "customer", content: "Hi! I'm looking to get a lift kit installed on my Wrangler. What do you guys recommend?", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString() },
-            { id: "m8", type: "agent", content: "Hey Jennifer! Great choice on the Wrangler. We work with a few different lift kits. Are you looking for more of a mall crawler look or serious off-road capability?", sender: "Sarah", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 23).toISOString() },
-            { id: "m9", type: "customer", content: "Definitely want to hit some trails! 4 inch lift with 35s if possible.", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 22).toISOString() },
-            { id: "m10", type: "system", content: "Deal Created: '4\" Lift Kit + 35\" Tires'", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 20).toISOString() },
-            { id: "m11", type: "agent", content: "Perfect! I put together a quote for you:\n\n• Rough Country 4\" Lift: $1,200\n• BFG KO2 35\" (x5): $1,800\n• Alignment + Install: $800\n\nTotal: $4,800 (parts + labor)\n\nThis combo is bulletproof for trail riding.", sender: "Sarah", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString() },
-            { id: "m12", type: "system", content: "Deal Moved to 'Quote Sent'", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString() },
-            { id: "m13", type: "customer", content: "That looks great! Let me talk to my husband and I'll get back to you.", timestamp: new Date(Date.now() - 1000 * 60 * 45).toISOString() },
-        ],
-        pastTickets: []
-    },
-    {
-        id: "conv-3",
-        customerId: "cust-3",
-        customerName: "David Park",
-        customerPhone: "+1 (555) 345-6789",
-        vehicle: { year: "2020", make: "Toyota", model: "Camry", color: "Silver" },
-        ltv: 580,
-        unread: false,
-        lastMessageAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-        messages: [
-            { id: "m14", type: "agent", content: "Hi David! Just a reminder your Camry is due for its 60k service. Would you like to schedule?", sender: "Mike", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString() },
-            { id: "m15", type: "customer", content: "Thanks for the reminder! I'll swing by next week.", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString() },
-            { id: "m16", type: "agent", content: "Sounds good! Just text us when you're ready.", sender: "Mike", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString() },
-        ],
-        pastTickets: [
-            { date: "Mar 15, 2024", subject: "30k Mile Service", status: "Closed" },
-        ]
-    },
-    {
-        id: "conv-4",
-        customerId: "cust-4",
-        customerName: "Amanda Chen",
-        customerPhone: "+1 (555) 987-1234",
-        unread: false,
-        lastMessageAt: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString(),
-        messages: [
-            { id: "m17", type: "customer", content: "Thanks, on my way!", timestamp: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString() },
-        ],
-        pastTickets: []
-    },
-];
 
 // ============= UNIFIED QUEUE (LEFT PANE) =============
 function UnifiedQueue({ conversations, selectedId, onSelect, filter, onFilterChange, searchQuery, onSearchChange }: {
@@ -608,9 +516,8 @@ function ContextPanel({ conversation, isOpen, onClose, onUpdateTicket, onCreateT
 
 // ============= MAIN COMPONENT =============
 export function ServiceDeskClient({ initialTickets, merchantId }: { initialTickets: Conversation[]; merchantId: string }) {
-    const data = initialTickets.length > 0 ? initialTickets : MOCK_CONVERSATIONS;
-    // Sort by most recent and auto-select first
-    const sortedData = [...data].sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+    // Use only real data - no mock fallback
+    const sortedData = [...initialTickets].sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
 
     const [conversations, setConversations] = useState<Conversation[]>(sortedData);
     const [selectedConvo, setSelectedConvo] = useState<Conversation | null>(sortedData[0] || null);
