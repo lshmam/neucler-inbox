@@ -5,40 +5,94 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { UsageChart } from "@/components/usage/UsageChart";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import {
     DollarSign, MessageSquare, Phone, Zap, Check,
-    CreditCard, Crown, Sparkles, ArrowRight
+    CreditCard, Crown, Sparkles, ArrowRight, Clock, AlertCircle
 } from "lucide-react";
+import { createClient } from "@/lib/supabase-client";
 
-// Stripe Price ID - Replace with your actual ID
-const PRO_PRICE_ID = "price_1SYHA3HdrdB9JVPzuy40RGTE";
+// Plan configurations
+const PLANS = {
+    starter: {
+        name: "Starter",
+        price: 79,
+        features: [
+            "Unified Support Inbox",
+            "Operational Playbook",
+            "Post-Call Performance Scoring",
+            "Dispute Protection Vault",
+            "Essential Insights Dashboard"
+        ]
+    },
+    pro: {
+        name: "Pro",
+        price: 149,
+        features: [
+            "Everything in Starter",
+            "AI Smart-Filter Call Routing",
+            "Active Agent Copilot",
+            "Automated Missed Call Rescue",
+            "Smart Capacity Waitlist",
+            "AI Voice Receptionists"
+        ]
+    }
+};
 
 export default function BillingPage() {
     const [loading, setLoading] = useState(true);
     const [usageData, setUsageData] = useState<any>(null);
+    const [error, setError] = useState<string | null>(null);
     const [upgradeLoading, setUpgradeLoading] = useState(false);
+    const [subscription, setSubscription] = useState<{
+        status: string;
+        tier: string | null;
+        trialEndsAt: string | null;
+    }>({ status: "trialing", tier: "pro", trialEndsAt: null });
 
-    // Current plan state (would come from your database in real implementation)
-    const [currentPlan] = useState({
-        name: "Pro Growth",
-        price: 99,
-        isActive: true,
-        features: [
-            "Unlimited AI Calls",
-            "SMS & Email Campaigns",
-            "All Automations",
-            "Priority Support"
-        ]
-    });
+    const supabase = createClient();
 
     useEffect(() => {
         const fetchData = async () => {
+            console.log("[Billing] Fetching data...");
+            setLoading(true);
+
             try {
+                // Fetch subscription status from Supabase
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { data: merchant } = await supabase
+                        .from("merchants")
+                        .select("subscription_status, subscription_tier, trial_ends_at")
+                        .eq("id", user.id)
+                        .single();
+
+                    if (merchant) {
+                        setSubscription({
+                            status: merchant.subscription_status || "trialing",
+                            tier: merchant.subscription_tier || "pro",
+                            trialEndsAt: merchant.trial_ends_at,
+                        });
+                    }
+                }
+
+                // Fetch usage data
                 const res = await fetch("/api/usage");
-                const json = await res.json();
-                setUsageData(json);
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    console.error("[Billing] API Error:", res.status, errorText);
+                    setError(`API returned ${res.status}`);
+                } else {
+                    const json = await res.json();
+                    if (json.error) {
+                        setError(json.error);
+                    } else {
+                        setUsageData(json);
+                    }
+                }
             } catch (e) {
-                console.error(e);
+                console.error("[Billing] Fetch error:", e);
+                setError(e instanceof Error ? e.message : "Unknown error");
             } finally {
                 setLoading(false);
             }
@@ -49,12 +103,8 @@ export default function BillingPage() {
     const handleManageSubscription = async () => {
         setUpgradeLoading(true);
         try {
-            // For existing subscribers, this would open the Stripe Customer Portal
-            // For new users, redirect to checkout
-            const res = await fetch("/api/stripe/checkout", {
-                method: "POST",
-                body: JSON.stringify({ priceId: PRO_PRICE_ID }),
-            });
+            // TODO: Open Stripe Customer Portal for existing subscribers
+            const res = await fetch("/api/stripe/portal", { method: "POST" });
             const data = await res.json();
             if (data.url) window.location.href = data.url;
         } catch (e) {
@@ -63,11 +113,41 @@ export default function BillingPage() {
         setUpgradeLoading(false);
     };
 
+    // Calculate trial days remaining
+    const getTrialDaysRemaining = () => {
+        if (!subscription.trialEndsAt) return null;
+        const trialEnd = new Date(subscription.trialEndsAt);
+        const now = new Date();
+        const diffTime = trialEnd.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return Math.max(0, diffDays);
+    };
+
+    const trialDaysRemaining = getTrialDaysRemaining();
+    const isTrialing = subscription.status === "trialing" && trialDaysRemaining !== null && trialDaysRemaining > 0;
+    const currentPlan = PLANS[subscription.tier as keyof typeof PLANS] || PLANS.pro;
+
     const totals = usageData?.totals || { calls_cost: 0, sms_cost: 0, email_cost: 0, token_cost: 0, total_cost: 0 };
     const history = usageData?.history || [];
+    const hasError = !!error;
+
+    const getStatusBadge = () => {
+        switch (subscription.status) {
+            case "trialing":
+                return <Badge className="bg-amber-100 text-amber-700 border-amber-200">Trial</Badge>;
+            case "active":
+                return <Badge className="bg-green-100 text-green-700 border-green-200">Active</Badge>;
+            case "past_due":
+                return <Badge className="bg-red-100 text-red-700 border-red-200">Past Due</Badge>;
+            case "canceled":
+                return <Badge className="bg-slate-100 text-slate-700 border-slate-200">Canceled</Badge>;
+            default:
+                return <Badge className="bg-slate-100 text-slate-700 border-slate-200">{subscription.status}</Badge>;
+        }
+    };
 
     return (
-        <div className="flex-1 space-y-8 p-8 pt-6">
+        <div className="flex-1 space-y-8 p-8 pt-6 overflow-auto">
             {/* HEADER */}
             <div className="flex flex-col space-y-2">
                 <h2 className="text-3xl font-bold tracking-tight">Billing</h2>
@@ -83,24 +163,22 @@ export default function BillingPage() {
                     <h3 className="text-xl font-semibold">Current Plan</h3>
                 </div>
 
-                <Card className="border-2 border-[#906CDD]/30 bg-gradient-to-br from-purple-50/50 to-white">
+                <Card className="border-2 border-blue-100 bg-gradient-to-br from-blue-50/50 to-white">
                     <CardHeader>
                         <div className="flex items-start justify-between">
                             <div>
                                 <div className="flex items-center gap-3">
                                     <CardTitle className="text-2xl">{currentPlan.name}</CardTitle>
-                                    {currentPlan.isActive && (
-                                        <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-                                            Active
-                                        </span>
-                                    )}
+                                    {getStatusBadge()}
                                 </div>
                                 <CardDescription className="mt-1">
-                                    Automate everything and grow faster
+                                    {isTrialing
+                                        ? "You're on a free trial. Your card will be charged when trial ends."
+                                        : "Automate everything and grow faster"}
                                 </CardDescription>
                             </div>
                             <div className="text-right">
-                                <div className="text-3xl font-bold text-[#906CDD]">
+                                <div className="text-3xl font-bold text-blue-600">
                                     ${currentPlan.price}
                                     <span className="text-sm font-normal text-muted-foreground">/mo</span>
                                 </div>
@@ -108,6 +186,40 @@ export default function BillingPage() {
                         </div>
                     </CardHeader>
                     <CardContent>
+                        {/* Trial Countdown */}
+                        {isTrialing && trialDaysRemaining !== null && (
+                            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-3">
+                                <div className="flex items-center justify-center w-12 h-12 bg-amber-100 rounded-full">
+                                    <Clock className="h-6 w-6 text-amber-600" />
+                                </div>
+                                <div>
+                                    <p className="font-semibold text-amber-900">
+                                        {trialDaysRemaining} day{trialDaysRemaining !== 1 ? "s" : ""} left in trial
+                                    </p>
+                                    <p className="text-sm text-amber-700">
+                                        Trial ends on {new Date(subscription.trialEndsAt!).toLocaleDateString("en-US", {
+                                            weekday: "long",
+                                            month: "long",
+                                            day: "numeric"
+                                        })}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Past Due Warning */}
+                        {subscription.status === "past_due" && (
+                            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+                                <AlertCircle className="h-6 w-6 text-red-600" />
+                                <div>
+                                    <p className="font-semibold text-red-900">Payment Failed</p>
+                                    <p className="text-sm text-red-700">
+                                        Please update your payment method to continue using all features.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="flex flex-wrap gap-3 mb-6">
                             {currentPlan.features.map((feature, i) => (
                                 <div key={i} className="flex items-center gap-1.5 text-sm text-slate-700 bg-white px-3 py-1.5 rounded-full border">
@@ -119,7 +231,7 @@ export default function BillingPage() {
                         <Button
                             onClick={handleManageSubscription}
                             disabled={upgradeLoading}
-                            className="bg-[#906CDD] hover:bg-[#7a5bb5]"
+                            className="bg-blue-600 hover:bg-blue-700"
                         >
                             {upgradeLoading ? "Processing..." : "Manage Subscription"}
                             <ArrowRight className="ml-2 h-4 w-4" />
@@ -144,10 +256,16 @@ export default function BillingPage() {
 
                 {loading ? (
                     <div className="py-8 text-center text-muted-foreground">Loading usage data...</div>
-                ) : usageData?.error ? (
-                    <div className="py-8 text-center text-red-500">Failed to load usage data</div>
                 ) : (
                     <>
+                        {/* Error Banner */}
+                        {hasError && (
+                            <div className="p-4 mb-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                                <p className="font-medium">Failed to load usage data</p>
+                                <p className="text-xs text-red-500 mt-1">{error}</p>
+                            </div>
+                        )}
+
                         {/* USAGE CARDS */}
                         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                             <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-none">
@@ -156,8 +274,10 @@ export default function BillingPage() {
                                     <DollarSign className="h-4 w-4 text-green-400" />
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-3xl font-bold">${totals.total_cost.toFixed(2)}</div>
-                                    <p className="text-xs text-slate-400">Base + Margin applied</p>
+                                    <div className="text-3xl font-bold">
+                                        {hasError ? <span className="text-red-400">—</span> : `$${totals.total_cost.toFixed(2)}`}
+                                    </div>
+                                    <p className="text-xs text-slate-400">{hasError ? "Unable to load" : "Base + Margin applied"}</p>
                                 </CardContent>
                             </Card>
                             <Card>
@@ -166,8 +286,10 @@ export default function BillingPage() {
                                     <Phone className="h-4 w-4 text-orange-500" />
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold">${totals.calls_cost.toFixed(2)}</div>
-                                    <p className="text-xs text-muted-foreground">AI voice minutes</p>
+                                    <div className="text-2xl font-bold">
+                                        {hasError ? <span className="text-red-400">—</span> : `$${totals.calls_cost.toFixed(2)}`}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">{hasError ? "Unable to load" : "AI voice minutes"}</p>
                                 </CardContent>
                             </Card>
                             <Card>
@@ -176,8 +298,10 @@ export default function BillingPage() {
                                     <MessageSquare className="h-4 w-4 text-green-500" />
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold">${totals.sms_cost.toFixed(2)}</div>
-                                    <p className="text-xs text-muted-foreground">Text messages sent</p>
+                                    <div className="text-2xl font-bold">
+                                        {hasError ? <span className="text-red-400">—</span> : `$${totals.sms_cost.toFixed(2)}`}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">{hasError ? "Unable to load" : "Text messages sent"}</p>
                                 </CardContent>
                             </Card>
                             <Card>
@@ -186,14 +310,16 @@ export default function BillingPage() {
                                     <Zap className="h-4 w-4 text-purple-500" />
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold">${totals.token_cost.toFixed(2)}</div>
-                                    <p className="text-xs text-muted-foreground">LLM processing</p>
+                                    <div className="text-2xl font-bold">
+                                        {hasError ? <span className="text-red-400">—</span> : `$${totals.token_cost.toFixed(2)}`}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">{hasError ? "Unable to load" : "LLM processing"}</p>
                                 </CardContent>
                             </Card>
                         </div>
 
-                        {/* USAGE CHART */}
-                        <UsageChart data={history} title="Daily Usage Cost (Last 30 Days)" />
+                        {/* USAGE CHART - Only show if no error */}
+                        {!hasError && <UsageChart data={history} title="Daily Usage Cost (Last 30 Days)" />}
                     </>
                 )}
             </div>
@@ -218,7 +344,7 @@ export default function BillingPage() {
                                 <p className="text-sm text-muted-foreground">Expires 12/2025</p>
                             </div>
                         </div>
-                        <Button variant="outline">Update</Button>
+                        <Button variant="outline" onClick={handleManageSubscription}>Update</Button>
                     </CardContent>
                 </Card>
             </div>

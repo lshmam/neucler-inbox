@@ -193,25 +193,16 @@ export function AIAgentClientView({ initialAgents, initialCallLogs, merchantId, 
     return (
         <div className="flex-1 space-y-6 p-8 pt-6">
 
-            {/* HEADER */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#906CDD] to-blue-500 flex items-center justify-center">
-                        <Bot className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                        <h2 className="text-3xl font-bold tracking-tight">AI Agent</h2>
-                        <p className="text-muted-foreground">Your digital employee — Voice, SMS, and Knowledge combined.</p>
-                    </div>
-                </div>
-                {!activeAgent && (
+            {/* Create agent button if none exists */}
+            {!activeAgent && (
+                <div className="flex justify-end">
                     <Button asChild className="bg-[#906CDD] hover:bg-[#7a5bb5]">
                         <Link href="/ai-agent?action=new">
                             <Plus className="mr-2 h-4 w-4" /> Create Agent
                         </Link>
                     </Button>
-                )}
-            </div>
+                </div>
+            )}
 
             {/* TOP STAT CARDS */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -599,6 +590,6 @@ export function AIAgentClientView({ initialAgents, initialCallLogs, merchantId, 
                     </div>
                 </TabsContent>
             </Tabs>
-        </div>
+        </div >
     );
 }

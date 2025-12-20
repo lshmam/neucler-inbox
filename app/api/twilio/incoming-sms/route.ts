@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { generateAIReply, isAutoReplyEnabled } from "@/lib/gemini-chat";
+import { routeIncomingMessage } from "@/services/ai-traffic-router";
 import twilio from "twilio";
 
 const twilioClient = twilio(
@@ -78,7 +79,7 @@ export async function POST(request: Request) {
                     merchant_id: merchantId,
                     phone_number: from,
                     first_name: "Unknown",
-                    last_name: "Caller"
+                    last_name: "Message"
                 })
                 .select("id")
                 .single();
@@ -146,6 +147,53 @@ export async function POST(request: Request) {
                 } else {
                     console.log(`🎫 New SMS ticket created: ${newTicketId}`);
                 }
+            }
+        }
+
+        // 🚦 AI TRAFFIC ROUTER - Classify and route the message
+        let routingResult = null;
+        if (customerId) {
+            console.log(`\n🚦 Running AI Traffic Router...`);
+
+            // Get existing ticket ID if any
+            const { data: existingTicket } = await supabaseAdmin
+                .from("tickets")
+                .select("id")
+                .eq("merchant_id", merchantId)
+                .eq("customer_id", customerId)
+                .eq("source", "sms")
+                .in("status", ["open", "in_progress", "pending"])
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            try {
+                routingResult = await routeIncomingMessage(
+                    body,
+                    customerId,
+                    merchantId,
+                    existingTicket?.id
+                );
+
+                console.log(`   🚦 Router Decision: ${routingResult.action}`);
+                console.log(`   📝 Note: ${routingResult.note}`);
+
+                // If escalated to human, skip auto-reply
+                if (routingResult.action === "ESCALATE") {
+                    console.log(`   ⚠️ Escalated to human - skipping auto-reply`);
+                    return new NextResponse("<Response></Response>", {
+                        headers: { "Content-Type": "text/xml" }
+                    });
+                }
+
+                // If routed to pipeline, log it but still proceed with auto-reply
+                if (routingResult.action === "PIPELINE") {
+                    console.log(`   💰 Sales opportunity detected - Deal ID: ${routingResult.dealId}`);
+                }
+
+            } catch (routerError) {
+                console.error(`   ❌ Router error (continuing with normal flow):`, routerError);
+                // Don't block the flow if router fails
             }
         }
 

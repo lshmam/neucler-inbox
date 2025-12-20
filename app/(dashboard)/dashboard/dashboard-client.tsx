@@ -66,16 +66,6 @@ export function DashboardClient({ data }: { data: DashboardData }) {
     return (
         <div className="flex-1 space-y-6 p-8 pt-6">
 
-            {/* HEADER */}
-            <div className="flex flex-col space-y-2">
-                <h2 className="text-3xl font-bold tracking-tight">
-                    Dashboard
-                </h2>
-                <p className="text-muted-foreground">
-                    Your AI receptionist is working. Here's what's happening.
-                </p>
-            </div>
-
             {/* ROW 1: VALUE CARDS (3-Column Grid) */}
             <div className="grid gap-4 md:grid-cols-3">
 

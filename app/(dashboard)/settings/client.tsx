@@ -21,8 +21,10 @@ import {
     Building2, Users, Bell, Puzzle, Globe,
     Upload, Mail, Phone, MapPin, Clock, Plus,
     Copy, Check, Link2, Calendar, Webhook,
-    Trash2, Settings, Info, Crown, ShieldCheck, User, Loader2, AlertCircle
+    Trash2, Settings, Info, Crown, ShieldCheck, User, Loader2, AlertCircle,
+    Bot, Mic, Sparkles, Search
 } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface SettingsClientProps {
     merchantId: string;
@@ -96,6 +98,25 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
     const [widgetGreeting, setWidgetGreeting] = useState('Hi! Text us here');
     const [widgetIcon, setWidgetIcon] = useState('chat');
     const widgetCode = `<script src="https://cdn.neucler.com/widget.js" data-merchant="${merchantId}" data-color="${widgetColor}"></script>`;
+
+    // AI Receptionist state
+    const [agentName, setAgentName] = useState('Front Desk AI');
+    const [systemPrompt, setSystemPrompt] = useState(`You are a helpful receptionist for ${businessName || 'our business'}. Answer questions about services, pricing, and availability. Be friendly and professional.`);
+    const [selectedVoice, setSelectedVoice] = useState('jenny');
+    const [agentAreaCode, setAgentAreaCode] = useState('');
+    const [availableNumbers, setAvailableNumbers] = useState<{ friendly_name: string; phone_number: string }[]>([]);
+    const [selectedPhoneNumber, setSelectedPhoneNumber] = useState<string | null>(null);
+    const [testPhoneNumber, setTestPhoneNumber] = useState('');
+    const [savingAgent, setSavingAgent] = useState(false);
+    const [searchingNumbers, setSearchingNumbers] = useState(false);
+    const [callingTest, setCallingTest] = useState(false);
+
+    const VOICES = [
+        { id: 'jenny', name: 'Jenny (Friendly)', description: 'Natural, warm female voice' },
+        { id: 'adam', name: 'Adam (Professional)', description: 'Clear, professional male voice' },
+        { id: 'sarah', name: 'Sarah (Energetic)', description: 'Upbeat, engaging female voice' },
+        { id: 'brian', name: 'Brian (Calm)', description: 'Soothing, patient male voice' },
+    ];
 
     // Fetch team data
     const fetchTeam = async () => {
@@ -206,17 +227,13 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
 
     return (
         <div className="flex-1 space-y-6 p-8 pt-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
-                    <p className="text-muted-foreground">Manage your account and preferences</p>
-                </div>
-            </div>
-
             <Tabs defaultValue="general" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+                <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
                     <TabsTrigger value="general" className="gap-2">
                         <Building2 className="h-4 w-4" /> General
+                    </TabsTrigger>
+                    <TabsTrigger value="ai-receptionist" className="gap-2">
+                        <Bot className="h-4 w-4" /> AI Receptionist
                     </TabsTrigger>
                     <TabsTrigger value="team" className="gap-2">
                         <Users className="h-4 w-4" /> Team
@@ -224,9 +241,6 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
                     <TabsTrigger value="notifications" className="gap-2">
                         <Bell className="h-4 w-4" /> Notifications
                     </TabsTrigger>
-                    {/* <TabsTrigger value="integrations" className="gap-2">
-                        <Puzzle className="h-4 w-4" /> Integrations
-                    </TabsTrigger> */}
                     <TabsTrigger value="widget" className="gap-2">
                         <Globe className="h-4 w-4" /> Site Widget
                     </TabsTrigger>
@@ -431,6 +445,249 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
                             </div>
                         </CardContent>
                     </Card>
+                </TabsContent>
+
+                {/* TAB: AI RECEPTIONIST */}
+                <TabsContent value="ai-receptionist" className="space-y-6">
+                    <div className="grid gap-6 lg:grid-cols-3">
+                        {/* Left Column: Configuration */}
+                        <div className="lg:col-span-2 space-y-6">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Bot className="h-5 w-5 text-purple-500" />
+                                        Agent Identity
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Configure how your AI receptionist presents itself
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label>Agent Name</Label>
+                                        <Input
+                                            value={agentName}
+                                            onChange={(e) => setAgentName(e.target.value)}
+                                            placeholder="e.g., Front Desk AI"
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            This is how the AI will introduce itself on calls
+                                        </p>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="flex items-center gap-2">
+                                            <Sparkles className="h-4 w-4 text-amber-500" />
+                                            System Prompt
+                                        </Label>
+                                        <Textarea
+                                            value={systemPrompt}
+                                            onChange={(e) => setSystemPrompt(e.target.value)}
+                                            className="min-h-[200px] font-mono text-sm"
+                                            placeholder="You are a helpful receptionist..."
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            Instructions that define how your AI behaves. Include business info, policies, and response style.
+                                        </p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Mic className="h-5 w-5 text-blue-500" />
+                                        Voice & Phone
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Choose a voice and assign a phone number
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-6">
+                                    <div className="space-y-3">
+                                        <Label>Voice</Label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {VOICES.map((v) => (
+                                                <div
+                                                    key={v.id}
+                                                    onClick={() => setSelectedVoice(v.id)}
+                                                    className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${selectedVoice === v.id
+                                                        ? "border-purple-500 bg-purple-50"
+                                                        : "border-slate-200 hover:border-slate-300"
+                                                        }`}
+                                                >
+                                                    <p className="font-medium text-sm">{v.name}</p>
+                                                    <p className="text-xs text-muted-foreground">{v.description}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <Separator />
+
+                                    <div className="space-y-3">
+                                        <Label>Phone Number</Label>
+                                        <p className="text-sm text-muted-foreground">
+                                            Search for an available number by area code
+                                        </p>
+                                        <div className="flex gap-2">
+                                            <div className="flex-1">
+                                                <Input
+                                                    placeholder="Enter area code (e.g., 805)"
+                                                    value={agentAreaCode}
+                                                    onChange={(e) => setAgentAreaCode(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                                                    maxLength={3}
+                                                />
+                                            </div>
+                                            <Button
+                                                variant="outline"
+                                                onClick={async () => {
+                                                    if (agentAreaCode.length < 3) {
+                                                        toast.error("Enter a 3-digit area code");
+                                                        return;
+                                                    }
+                                                    setSearchingNumbers(true);
+                                                    // Mock search - in production, call your API
+                                                    await new Promise(r => setTimeout(r, 1000));
+                                                    setAvailableNumbers([
+                                                        { friendly_name: `(${agentAreaCode}) 555-0100`, phone_number: `+1${agentAreaCode}5550100` },
+                                                        { friendly_name: `(${agentAreaCode}) 555-0101`, phone_number: `+1${agentAreaCode}5550101` },
+                                                        { friendly_name: `(${agentAreaCode}) 555-0102`, phone_number: `+1${agentAreaCode}5550102` },
+                                                    ]);
+                                                    setSearchingNumbers(false);
+                                                }}
+                                                disabled={searchingNumbers}
+                                            >
+                                                {searchingNumbers ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                    <><Search className="h-4 w-4 mr-2" /> Find</>)}
+                                            </Button>
+                                        </div>
+
+                                        {availableNumbers.length > 0 && (
+                                            <RadioGroup
+                                                value={selectedPhoneNumber || ''}
+                                                onValueChange={setSelectedPhoneNumber}
+                                                className="space-y-2 pt-2"
+                                            >
+                                                {availableNumbers.map((num) => (
+                                                    <div
+                                                        key={num.phone_number}
+                                                        className={`flex items-center space-x-3 border p-3 rounded-lg cursor-pointer transition-all ${selectedPhoneNumber === num.phone_number
+                                                            ? "border-purple-500 bg-purple-50"
+                                                            : "hover:bg-slate-50"
+                                                            }`}
+                                                    >
+                                                        <RadioGroupItem value={num.phone_number} id={num.phone_number} />
+                                                        <Label htmlFor={num.phone_number} className="font-mono cursor-pointer flex-1">
+                                                            {num.friendly_name}
+                                                        </Label>
+                                                    </div>
+                                                ))}
+                                            </RadioGroup>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        {/* Right Column: Actions */}
+                        <div className="space-y-6">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Save Configuration</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <Button
+                                        onClick={async () => {
+                                            setSavingAgent(true);
+                                            try {
+                                                const res = await fetch('/api/agent/save', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                        name: agentName,
+                                                        system_prompt: systemPrompt,
+                                                        voice_id: selectedVoice,
+                                                        phone_number: selectedPhoneNumber
+                                                    })
+                                                });
+                                                if (!res.ok) throw new Error('Failed to save');
+                                                toast.success('AI Receptionist saved!');
+                                                router.refresh();
+                                            } catch (err) {
+                                                toast.error('Failed to save agent');
+                                            } finally {
+                                                setSavingAgent(false);
+                                            }
+                                        }}
+                                        disabled={savingAgent}
+                                        className="w-full bg-[#906CDD] hover:bg-[#7a5bb5]"
+                                        size="lg"
+                                    >
+                                        {savingAgent ? (
+                                            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</>
+                                        ) : (
+                                            'Save Agent'
+                                        )}
+                                    </Button>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="flex items-center gap-2">
+                                        <Phone className="h-5 w-5 text-green-500" />
+                                        Test Your Agent
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Receive a test call from your AI receptionist
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <Input
+                                        placeholder="+1 (555) 123-4567"
+                                        value={testPhoneNumber}
+                                        onChange={(e) => setTestPhoneNumber(e.target.value)}
+                                    />
+                                    <Button
+                                        onClick={async () => {
+                                            if (!testPhoneNumber) {
+                                                toast.error('Enter a phone number');
+                                                return;
+                                            }
+                                            setCallingTest(true);
+                                            try {
+                                                // Mock call - replace with your API
+                                                await new Promise(r => setTimeout(r, 2000));
+                                                toast.success('Test call initiated! Your phone will ring shortly.');
+                                            } catch (err) {
+                                                toast.error('Failed to initiate call');
+                                            } finally {
+                                                setCallingTest(false);
+                                            }
+                                        }}
+                                        disabled={callingTest}
+                                        className="w-full"
+                                        variant="outline"
+                                    >
+                                        {callingTest ? (
+                                            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Calling...</>
+                                        ) : (
+                                            <><Phone className="h-4 w-4 mr-2" /> Call Me</>
+                                        )}
+                                    </Button>
+                                </CardContent>
+                            </Card>
+
+                            <Alert>
+                                <Info className="h-4 w-4" />
+                                <AlertDescription>
+                                    Your AI receptionist uses your <strong>Shop Playbook</strong> knowledge base to answer customer questions accurately.
+                                </AlertDescription>
+                            </Alert>
+                        </div>
+                    </div>
                 </TabsContent>
 
                 {/* TAB 2: TEAM */}

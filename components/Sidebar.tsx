@@ -6,49 +6,36 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
     LayoutDashboard,
+    Headset,
     TrendingUp,
-    MessageSquare,
-    Smartphone,
-    Mail,
-    Bot,
-    Globe,
-    Star,
-    Trophy,
-    Zap,
+    LineChart,
+    BookOpenCheck,
+    Radio,
     CreditCard,
     Settings,
     LogOut,
-    ChevronDown,
-    User,
-    Megaphone,
-    Users2,
-    Ticket,
-    BookOpen
+    ChevronDown
 } from "lucide-react";
 
 const NAV_SECTIONS = [
     {
-        title: "Overview",
+        title: "OPERATIONS",
         items: [
             { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-            { label: "Performance", href: "/performance", icon: Trophy },
-            { label: "Inbox", href: "/inbox", icon: MessageSquare },
-            { label: "Tickets", href: "/tickets", icon: Ticket },
-            { label: "Customers", href: "/customers", icon: User },
+            { label: "Service Desk", href: "/service-desk", icon: Headset },
+            { label: "Pipeline", href: "/pipeline", icon: TrendingUp },
         ]
     },
     {
-        title: "Growth",
+        title: "MANAGEMENT",
         items: [
-            { label: "Marketing", href: "/marketing", icon: Megaphone },
-            { label: "AI Agent", href: "/ai-agent", icon: Bot },
-            { label: "Knowledge Base", href: "/knowledge-base", icon: BookOpen },
-            { label: "Automations", href: "/automations", icon: Zap },
-            // { label: "Reputation", href: "/reviews", icon: Star },
+            { label: "Performance", href: "/performance", icon: LineChart },
+            { label: "Shop Playbook", href: "/knowledge-base", icon: BookOpenCheck },
+            { label: "Outreach", href: "/outreach", icon: Radio },
         ]
     },
     {
-        title: "Account",
+        title: "SYSTEM",
         items: [
             { label: "Billing", href: "/billing", icon: CreditCard },
             { label: "Settings", href: "/settings", icon: Settings },
@@ -62,11 +49,11 @@ interface SidebarProps {
         logo: string | null;
         color: string;
     };
-    onNavigate?: () => void;  // Called when a nav item is clicked (for mobile)
+    onNavigate?: () => void;
 }
 
 const DEFAULT_BRANDING = {
-    name: "Neucler AI",
+    name: "Auto Shop OS",
     logo: null,
     color: "blue"
 };
@@ -74,13 +61,10 @@ const DEFAULT_BRANDING = {
 export function Sidebar({ branding = DEFAULT_BRANDING, onNavigate }: SidebarProps) {
     const pathname = usePathname();
 
-    // Keep track of open menus
     const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-        "Overview": true,
-        "Growth": true,
-        "Retention": true,
-        "Automation": true,
-        "Account": true
+        "OPERATIONS": true,
+        "MANAGEMENT": true,
+        "SYSTEM": true
     });
 
     const toggleGroup = (title: string) => {
@@ -88,33 +72,31 @@ export function Sidebar({ branding = DEFAULT_BRANDING, onNavigate }: SidebarProp
     };
 
     return (
-        <div className="flex flex-col h-full w-64 bg-[#09090b] border-r border-zinc-800 text-zinc-300 shrink-0">
+        <div className="flex flex-col h-full w-64 bg-slate-50 border-r border-slate-200 text-slate-900 shrink-0">
 
             {/* --- HEADER --- */}
-            <div className="min-h-16 flex items-center px-6 py-3 border-b border-zinc-800 shrink-0">
+            <div className="min-h-16 flex items-center px-6 py-4 border-b border-slate-200 shrink-0 bg-white">
                 <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-md bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0 text-white font-bold overflow-hidden">
-                        {branding.logo ? <img src={branding.logo} className="w-full h-full object-cover" alt="Logo" /> : branding.name.substring(0, 2)}
+                    <div className="h-9 w-9 rounded-lg bg-blue-600 flex items-center justify-center shrink-0 text-white font-bold text-sm overflow-hidden shadow-sm">
+                        {branding.logo ? <img src={branding.logo} className="w-full h-full object-cover" alt="Logo" /> : branding.name.substring(0, 2).toUpperCase()}
                     </div>
-                    <h1 className="font-semibold text-white text-sm leading-tight line-clamp-2">{branding.name}</h1>
+                    <h1 className="font-semibold text-slate-900 text-sm leading-tight line-clamp-2">{branding.name}</h1>
                 </div>
             </div>
 
             {/* --- SCROLLABLE NAV --- */}
-            <div className="flex-1 overflow-y-auto py-4 px-4 flex flex-col
-                /* SCROLLBAR STYLING START */
+            <div className="flex-1 overflow-y-auto py-4 px-3 flex flex-col
                 [&::-webkit-scrollbar]:w-1.5
                 [&::-webkit-scrollbar-track]:bg-transparent
-                [&::-webkit-scrollbar-thumb]:bg-zinc-800
+                [&::-webkit-scrollbar-thumb]:bg-slate-300
                 [&::-webkit-scrollbar-thumb]:rounded-full
-                hover:[&::-webkit-scrollbar-thumb]:bg-zinc-700
-                /* SCROLLBAR STYLING END */
+                hover:[&::-webkit-scrollbar-thumb]:bg-slate-400
             ">
                 {NAV_SECTIONS.map((section, index) => (
-                    <div key={section.title} className={index < NAV_SECTIONS.length - 1 ? "flex-1" : ""}>
+                    <div key={section.title} className={cn("mb-4", index < NAV_SECTIONS.length - 1 && "pb-4 border-b border-slate-200")}>
                         <button
                             onClick={() => toggleGroup(section.title)}
-                            className="flex items-center justify-between w-full px-2 py-2 text-[11px] font-bold text-zinc-500 uppercase tracking-wider hover:text-zinc-300 transition-colors mb-1"
+                            className="flex items-center justify-between w-full px-2 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:text-slate-700 transition-colors"
                         >
                             <span>{section.title}</span>
                             <ChevronDown
@@ -127,7 +109,7 @@ export function Sidebar({ branding = DEFAULT_BRANDING, onNavigate }: SidebarProp
 
                         <div
                             className={cn(
-                                "space-y-1 overflow-hidden transition-all duration-300",
+                                "space-y-0.5 overflow-hidden transition-all duration-300",
                                 !openGroups[section.title] ? "max-h-0 opacity-0" : "max-h-[500px] opacity-100"
                             )}
                         >
@@ -139,13 +121,16 @@ export function Sidebar({ branding = DEFAULT_BRANDING, onNavigate }: SidebarProp
                                         href={item.href}
                                         onClick={onNavigate}
                                         className={cn(
-                                            "group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-all duration-200",
+                                            "group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150",
                                             isActive
-                                                ? "bg-blue-600 text-white shadow-md"
-                                                : "text-zinc-400 hover:bg-blue-600 hover:text-white"
+                                                ? "bg-blue-50 text-blue-700 border border-blue-100"
+                                                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-transparent"
                                         )}
                                     >
-                                        <item.icon className={cn("h-5 w-5 shrink-0 mr-3", isActive ? "text-white" : "text-zinc-400 group-hover:text-white")} />
+                                        <item.icon className={cn(
+                                            "h-5 w-5 shrink-0 mr-3",
+                                            isActive ? "text-blue-600" : "text-slate-400 group-hover:text-slate-600"
+                                        )} />
                                         <span className="truncate">{item.label}</span>
                                     </Link>
                                 );
@@ -156,10 +141,10 @@ export function Sidebar({ branding = DEFAULT_BRANDING, onNavigate }: SidebarProp
             </div>
 
             {/* --- FOOTER --- */}
-            <div className="p-4 border-t border-zinc-800 bg-[#09090b] shrink-0">
+            <div className="p-3 border-t border-slate-200 bg-white shrink-0">
                 <a
                     href="/auth/logout"
-                    className="flex items-center rounded-md px-3 py-2 text-sm font-medium text-zinc-400 hover:bg-red-500/10 hover:text-red-500 transition-all"
+                    className="flex items-center rounded-lg px-3 py-2.5 text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all border border-transparent hover:border-red-100"
                 >
                     <LogOut className="h-5 w-5 shrink-0 mr-3" />
                     <span>Sign Out</span>

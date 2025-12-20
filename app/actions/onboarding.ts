@@ -96,53 +96,8 @@ export async function saveOnboardingData(data: OnboardingData) {
         console.log(`✅ [Onboarding] ${articlesToInsert.length} KB articles created`);
     }
 
-    // 6. Send notification email to admin
-    try {
-        await mg.messages.create(DOMAIN!, {
-            from: `Neucler <noreply@${DOMAIN}>`,
-            to: ['ishmam.aminul@gmail.com'],
-            subject: `🎉 New User Signup: ${data.business_name}`,
-            html: `
-                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; max-width: 600px;">
-                    <h2 style="color: #000;">New User Signed Up!</h2>
-                    <p style="color: #333; font-size: 16px;">A new user has completed onboarding:</p>
-                    <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-                        <tr style="border-bottom: 1px solid #eee;">
-                            <td style="padding: 10px 0; color: #666; font-weight: 500;">Business Name</td>
-                            <td style="padding: 10px 0; color: #000;">${data.business_name}</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid #eee;">
-                            <td style="padding: 10px 0; color: #666; font-weight: 500;">Email</td>
-                            <td style="padding: 10px 0; color: #000;">${user.email}</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid #eee;">
-                            <td style="padding: 10px 0; color: #666; font-weight: 500;">Phone</td>
-                            <td style="padding: 10px 0; color: #000;">${data.phone || 'Not provided'}</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid #eee;">
-                            <td style="padding: 10px 0; color: #666; font-weight: 500;">Address</td>
-                            <td style="padding: 10px 0; color: #000;">${data.address || 'Not provided'}</td>
-                        </tr>
-                        <tr style="border-bottom: 1px solid #eee;">
-                            <td style="padding: 10px 0; color: #666; font-weight: 500;">Website</td>
-                            <td style="padding: 10px 0; color: #000;">${data.website || 'Not provided'}</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 10px 0; color: #666; font-weight: 500;">Signed Up At</td>
-                            <td style="padding: 10px 0; color: #000;">${new Date().toLocaleString()}</td>
-                        </tr>
-                    </table>
-                    <p style="color: #888; font-size: 12px; margin-top: 30px;">
-                        This is an automated notification from Neucler.
-                    </p>
-                </div>
-            `
-        });
-        console.log("✅ [Onboarding] Admin notification email sent");
-    } catch (emailError) {
-        // Don't fail the onboarding if email fails
-        console.error("⚠️ [Onboarding] Failed to send admin notification email:", emailError);
-    }
+    // Email will now be sent after successful Stripe checkout instead
+    console.log("✅ [Onboarding] Profile setup complete - email will be sent after payment");
 
     // 7. Return success
     return { success: true };

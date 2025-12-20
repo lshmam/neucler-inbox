@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { PageLoader } from "@/components/ui/page-loader";
 import { toast } from "sonner";
 
 // ============= MOCK DATA =============
@@ -554,14 +555,7 @@ export default function PerformancePage() {
     }, []);
 
     if (loading) {
-        return (
-            <div className="flex-1 flex items-center justify-center p-8">
-                <div className="text-center">
-                    <div className="h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                    <p className="text-gray-500">Loading performance data...</p>
-                </div>
-            </div>
-        );
+        return <PageLoader />;
     }
 
     const tabs = [
@@ -572,16 +566,12 @@ export default function PerformancePage() {
 
     return (
         <div className="flex-1 space-y-6 p-8 pt-6 bg-gray-100 min-h-screen">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-3xl font-bold tracking-tight text-gray-900">Shop Command Center</h2>
-                    <p className="text-gray-500 mt-1">Team performance • Open to all staff</p>
-                </div>
-                {useMockData && (
+            {/* Demo Mode Badge */}
+            {useMockData && (
+                <div className="flex justify-end">
                     <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Demo Mode</Badge>
-                )}
-            </div>
+                </div>
+            )}
 
             {/* KPI Cards - Always visible */}
             <KPIHeader kpis={data.kpis} />
