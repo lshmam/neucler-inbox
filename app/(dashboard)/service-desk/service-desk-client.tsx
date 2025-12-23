@@ -1508,7 +1508,7 @@ export function ServiceDeskClient({ initialTickets, merchantId }: { initialTicke
     };
 
     return (
-        <div className="h-full w-full flex overflow-hidden bg-slate-100">
+        <div className="h-[100dvh] md:h-full w-full flex overflow-hidden bg-slate-100">
             {/* Queue Pane */}
             <div className={cn(
                 "h-full shrink-0 border-r border-slate-200 md:w-72 md:flex",
@@ -1530,7 +1530,7 @@ export function ServiceDeskClient({ initialTickets, merchantId }: { initialTicke
 
             {/* Chat Pane */}
             <div className={cn(
-                "h-full flex-1 min-w-0 md:flex flex-col bg-white",
+                "h-full flex-1 min-w-0 md:flex flex-col bg-white overflow-hidden",
                 view === 'chat' ? 'flex' : 'hidden md:flex'
             )}>
                 <ActionStream
