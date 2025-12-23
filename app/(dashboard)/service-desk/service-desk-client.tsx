@@ -229,8 +229,8 @@ function ActionStream({ conversation, onSendMessage, onCreateTicket, onTogglePan
 
     useEffect(() => {
         if (scrollRef.current) {
-            const el = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
-            if (el) el.scrollTop = el.scrollHeight;
+            // Auto-scroll to bottom when messages change
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [conversation?.messages]);
 
@@ -256,8 +256,8 @@ function ActionStream({ conversation, onSendMessage, onCreateTicket, onTogglePan
 
     return (
         <div className="flex-1 flex flex-col bg-white h-full min-w-0 overflow-hidden">
-            {/* HUD Header - Sticky on mobile */}
-            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white sticky top-0 z-10">
+            {/* HUD Header - Fixed at top */}
+            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white z-10">
                 <div className="flex items-center gap-3 min-w-0">
                     <Button
                         size="icon"
@@ -303,9 +303,9 @@ function ActionStream({ conversation, onSendMessage, onCreateTicket, onTogglePan
                 </div>
             </div>
 
-            {/* Messages */}
-            <ScrollArea className="flex-1 min-h-0 p-4" ref={scrollRef}>
-                <div className="space-y-4 max-w-2xl mx-auto">
+            {/* Messages - Scrollable middle section */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-4" ref={scrollRef}>
+                <div className="space-y-4 max-w-2xl mx-auto pb-2">
                     {conversation.messages.map(msg => {
                         // System Message (Call with Summary)
                         if (msg.type === "system") {
@@ -408,7 +408,7 @@ function ActionStream({ conversation, onSendMessage, onCreateTicket, onTogglePan
                         );
                     })}
                 </div>
-            </ScrollArea>
+            </div>
 
             {/* Composer */}
             <div className="p-4 border-t border-slate-200 bg-slate-50 shrink-0">
