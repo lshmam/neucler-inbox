@@ -53,11 +53,11 @@ export function DashboardShell({ branding, children, knowledgeBaseArticles = [] 
                 {children}
             </main>
 
-            {/* Knowledge Base Toggle Button */}
+            {/* Knowledge Base Toggle Button - Hidden on mobile */}
             <button
                 onClick={() => setShowKnowledgeBase(prev => !prev)}
                 className={cn(
-                    "fixed bottom-4 right-4 z-[90] h-12 w-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-300",
+                    "hidden md:flex fixed bottom-4 right-4 z-[90] h-12 w-12 rounded-full shadow-lg items-center justify-center transition-all duration-300",
                     showKnowledgeBase
                         ? "bg-[#004789] text-white"
                         : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"

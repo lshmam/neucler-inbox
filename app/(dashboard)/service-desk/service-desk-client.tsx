@@ -256,8 +256,8 @@ function ActionStream({ conversation, onSendMessage, onCreateTicket, onTogglePan
 
     return (
         <div className="flex-1 flex flex-col bg-white h-full min-w-0 overflow-hidden">
-            {/* HUD Header */}
-            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white">
+            {/* HUD Header - Sticky on mobile */}
+            <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between shrink-0 bg-white sticky top-0 z-10">
                 <div className="flex items-center gap-3 min-w-0">
                     <Button
                         size="icon"
