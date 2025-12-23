@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { formatDistanceToNow } from "date-fns";
 import {
     Phone, MessageSquare, Globe, TrendingUp, DollarSign,
     Users, AlertCircle, Clock, Car, Kanban, Database,
-    Search, Upload, X, Plus, ChevronRight, Truck, Crown, UserX, Hash
+    Search, Upload, X, Plus, ChevronRight, Truck, Crown, UserX, Hash, Loader2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,9 +19,10 @@ interface Deal {
     id: string;
     vehicle: { year: string; make: string; model: string; };
     customer_name: string;
+    customer_phone?: string;
     issue: string;
     value: number;
-    source: "phone" | "sms" | "google";
+    source: "phone" | "sms" | "google" | "service_desk";
     created_at: string;
     status: "new_inquiry" | "quote_sent" | "follow_up" | "booked";
 }
@@ -55,30 +56,6 @@ const COLUMNS: Column[] = [
     { id: "quote_sent", title: "Quote Sent", color: "text-blue-700", bgColor: "bg-blue-50", borderColor: "border-blue-200" },
     { id: "follow_up", title: "Follow-Up Needed", color: "text-amber-700", bgColor: "bg-amber-50", borderColor: "border-amber-200" },
     { id: "booked", title: "Booked", color: "text-green-700", bgColor: "bg-green-50", borderColor: "border-green-200" },
-];
-
-// ============= MOCK DEALS DATA =============
-const MOCK_DEALS: Deal[] = [
-    { id: "d1", vehicle: { year: "2018", make: "Ford", model: "F-150" }, customer_name: "John Martinez", issue: "Brake Squeak", value: 850, source: "phone", created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), status: "new_inquiry" },
-    { id: "d2", vehicle: { year: "2020", make: "Toyota", model: "Camry" }, customer_name: "Sarah Chen", issue: "Check Engine Light", value: 1200, source: "sms", created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), status: "new_inquiry" },
-    { id: "d3", vehicle: { year: "2017", make: "Honda", model: "Accord" }, customer_name: "Mike Thompson", issue: "Transmission Flush", value: 450, source: "google", created_at: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(), status: "quote_sent" },
-    { id: "d4", vehicle: { year: "2019", make: "Chevrolet", model: "Silverado" }, customer_name: "Robert Davis", issue: "AC Not Cooling", value: 980, source: "phone", created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), status: "quote_sent" },
-    { id: "d5", vehicle: { year: "2021", make: "Subaru", model: "Outback" }, customer_name: "Emily Wilson", issue: "Tire Alignment", value: 150, source: "sms", created_at: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(), status: "follow_up" },
-    { id: "d6", vehicle: { year: "2016", make: "BMW", model: "X5" }, customer_name: "James Anderson", issue: "Oil Change + Inspection", value: 350, source: "google", created_at: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), status: "booked" }
-];
-
-// ============= MOCK CUSTOMERS DATA =============
-const MOCK_CUSTOMERS: Customer[] = [
-    { id: "c1", name: "Marcus Johnson", phone: "(555) 123-4567", email: "marcus@email.com", vehicles: [{ year: "2021", make: "Mercedes", model: "GLE 350" }, { year: "2019", make: "Porsche", model: "Cayenne" }], totalSpend: 8450, lastVisit: "2024-03-10", tags: ["WinterTires"], isVip: true, isFleet: false },
-    { id: "c2", name: "ABC Plumbing Co.", phone: "(555) 234-5678", email: "fleet@abcplumbing.com", vehicles: [{ year: "2022", make: "Ford", model: "Transit" }, { year: "2021", make: "Ford", model: "Transit" }, { year: "2020", make: "Ford", model: "E-350" }], totalSpend: 12800, lastVisit: "2024-03-08", tags: [], isVip: true, isFleet: true },
-    { id: "c3", name: "Sandra Williams", phone: "(555) 345-6789", email: "sandra.w@email.com", vehicles: [{ year: "2018", make: "Audi", model: "Q5" }], totalSpend: 4200, lastVisit: "2024-02-15", tags: ["AudiClub"], isVip: true, isFleet: false },
-    { id: "c4", name: "Tom's Landscaping", phone: "(555) 456-7890", email: "tom@landscaping.com", vehicles: [{ year: "2019", make: "Chevrolet", model: "Silverado" }, { year: "2020", make: "Chevrolet", model: "Silverado" }], totalSpend: 6700, lastVisit: "2024-03-12", tags: [], isVip: true, isFleet: true },
-    { id: "c5", name: "Rachel Green", phone: "(555) 567-8901", email: "rgreen@email.com", vehicles: [{ year: "2017", make: "Honda", model: "CR-V" }], totalSpend: 890, lastVisit: "2023-09-20", tags: [], isVip: false, isFleet: false },
-    { id: "c6", name: "Kevin Chen", phone: "(555) 678-9012", email: "kchen@email.com", vehicles: [{ year: "2020", make: "Toyota", model: "RAV4" }], totalSpend: 1250, lastVisit: "2024-01-05", tags: ["WinterTires"], isVip: false, isFleet: false },
-    { id: "c7", name: "Quick Delivery Inc.", phone: "(555) 789-0123", email: "dispatch@quickdelivery.com", vehicles: [{ year: "2021", make: "Ram", model: "ProMaster" }, { year: "2020", make: "Ram", model: "ProMaster" }, { year: "2019", make: "Ram", model: "ProMaster" }, { year: "2022", make: "Ford", model: "Transit Connect" }], totalSpend: 18900, lastVisit: "2024-03-14", tags: [], isVip: true, isFleet: true },
-    { id: "c8", name: "Lisa Park", phone: "(555) 890-1234", email: "lpark@email.com", vehicles: [{ year: "2022", make: "BMW", model: "X3" }], totalSpend: 2100, lastVisit: "2024-02-28", tags: [], isVip: true, isFleet: false },
-    { id: "c9", name: "David Miller", phone: "(555) 901-2345", email: "dmiller@email.com", vehicles: [{ year: "2015", make: "Ford", model: "F-150" }], totalSpend: 450, lastVisit: "2022-11-10", tags: [], isVip: false, isFleet: false },
-    { id: "c10", name: "Jennifer Adams", phone: "(555) 012-3456", email: "jadams@email.com", vehicles: [{ year: "2019", make: "Subaru", model: "Forester" }], totalSpend: 3400, lastVisit: "2024-03-01", tags: ["SubaruFan"], isVip: true, isFleet: false },
 ];
 
 // ============= HELPER FUNCTIONS =============
@@ -120,7 +97,7 @@ function ConversionScoreboard({ deals }: { deals: Deal[] }) {
 }
 
 // ============= DEAL CARD =============
-function DealCard({ deal, index }: { deal: Deal; index: number }) {
+function DealCard({ deal, index, onClick }: { deal: Deal; index: number; onClick: () => void }) {
     const getSourceIcon = (source: string) => {
         switch (source) {
             case "phone": return <Phone className="h-3 w-3" />;
@@ -137,7 +114,8 @@ function DealCard({ deal, index }: { deal: Deal; index: number }) {
                     ref={provided.innerRef}
                     {...provided.draggableProps}
                     {...provided.dragHandleProps}
-                    className={`bg-white rounded-lg border p-3 mb-2 cursor-grab active:cursor-grabbing transition-shadow ${snapshot.isDragging ? "shadow-lg border-blue-300 ring-2 ring-blue-200" : "border-slate-200 hover:shadow-md"}`}
+                    onClick={onClick}
+                    className={`bg-white rounded-lg border p-3 mb-2 cursor-pointer transition-shadow ${snapshot.isDragging ? "shadow-lg border-blue-300 ring-2 ring-blue-200" : "border-slate-200 hover:shadow-md hover:border-blue-300"}`}
                 >
                     <div className="flex items-center gap-1.5 mb-2">
                         <Car className="h-4 w-4 text-slate-400" />
@@ -161,8 +139,8 @@ function DealCard({ deal, index }: { deal: Deal; index: number }) {
 }
 
 // ============= DEAL BOARD (KANBAN) =============
-function DealBoard({ deals, setDeals }: { deals: Deal[]; setDeals: (deals: Deal[]) => void }) {
-    const handleDragEnd = (result: DropResult) => {
+function DealBoard({ deals, setDeals, onSelectDeal }: { deals: Deal[]; setDeals: (deals: Deal[]) => void; onSelectDeal: (deal: Deal) => void }) {
+    const handleDragEnd = async (result: DropResult) => {
         const { destination, source, draggableId } = result;
         if (!destination) return;
         if (destination.droppableId === source.droppableId && destination.index === source.index) return;
@@ -172,8 +150,30 @@ function DealBoard({ deals, setDeals }: { deals: Deal[]; setDeals: (deals: Deal[
 
         const newStatus = destination.droppableId as ColumnId;
         const oldStatus = deal.status;
+
+        // Optimistically update UI
         const updatedDeals = deals.map(d => d.id === draggableId ? { ...d, status: newStatus } : d);
         setDeals(updatedDeals);
+
+        // Persist to database
+        try {
+            const response = await fetch("/api/deals", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: deal.id, status: newStatus })
+            });
+
+            if (!response.ok) {
+                // Revert on error
+                setDeals(deals);
+                toast.error("Failed to update deal status");
+                return;
+            }
+        } catch (error) {
+            setDeals(deals);
+            toast.error("Failed to update deal status");
+            return;
+        }
 
         if (newStatus === "follow_up" && oldStatus !== "follow_up") triggerAutoFollowUp(deal.id, deal.customer_name);
         if (newStatus === "booked") toast.success(`🎉 ${deal.customer_name} booked!`, { description: `${deal.vehicle.year} ${deal.vehicle.make} ${deal.vehicle.model} - $${deal.value}` });
@@ -193,7 +193,7 @@ function DealBoard({ deals, setDeals }: { deals: Deal[]; setDeals: (deals: Deal[
                             <Droppable droppableId={column.id}>
                                 {(provided, snapshot) => (
                                     <div ref={provided.innerRef} {...provided.droppableProps} className={`flex-1 p-2 rounded-b-lg border border-t-0 ${column.borderColor} min-h-[200px] transition-colors ${snapshot.isDraggingOver ? "bg-blue-50" : "bg-slate-50"}`}>
-                                        {columnDeals.map((deal, index) => (<DealCard key={deal.id} deal={deal} index={index} />))}
+                                        {columnDeals.map((deal, index) => (<DealCard key={deal.id} deal={deal} index={index} onClick={() => onSelectDeal(deal)} />))}
                                         {provided.placeholder}
                                         {columnDeals.length === 0 && !snapshot.isDraggingOver && (<div className="h-full flex items-center justify-center text-slate-400 text-sm">Drop deals here</div>)}
                                     </div>
@@ -207,8 +207,141 @@ function DealBoard({ deals, setDeals }: { deals: Deal[]; setDeals: (deals: Deal[
     );
 }
 
+// ============= DEAL DETAIL PANEL (RIGHT POPUP) =============
+function DealDetailPanel({
+    deal,
+    isOpen,
+    onClose,
+    onStatusChange,
+    onShowDeleteConfirm
+}: {
+    deal: Deal | null;
+    isOpen: boolean;
+    onClose: () => void;
+    onStatusChange: (id: string, status: Deal["status"]) => void;
+    onShowDeleteConfirm: () => void;
+}) {
+    if (!isOpen || !deal) return null;
+
+    const statusOptions: { value: Deal["status"]; label: string; color: string }[] = [
+        { value: "new_inquiry", label: "New Inquiry", color: "bg-slate-500" },
+        { value: "quote_sent", label: "Quote Sent", color: "bg-blue-500" },
+        { value: "follow_up", label: "Follow-Up", color: "bg-amber-500" },
+        { value: "booked", label: "Booked", color: "bg-green-500" },
+    ];
+
+    return (
+        <div className="fixed inset-y-0 right-0 w-80 bg-white shadow-2xl border-l border-slate-200 z-50 flex flex-col">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+                <h3 className="font-bold text-lg text-slate-900">Deal Details</h3>
+                <Button variant="ghost" size="icon" onClick={onClose}>
+                    <X className="h-5 w-5" />
+                </Button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-auto p-4 space-y-4">
+                {/* Primary Action - Go to Service Desk */}
+                <a
+                    href="/service-desk"
+                    className="block w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl p-4 transition-all group"
+                >
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 bg-white/20 rounded-lg flex items-center justify-center">
+                                <MessageSquare className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <p className="font-semibold">Open in Service Desk</p>
+                                <p className="text-xs text-blue-200">View conversation & send messages</p>
+                            </div>
+                        </div>
+                        <ChevronRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                </a>
+
+                {/* Customer Info */}
+                <div className="bg-slate-50 rounded-xl p-4">
+                    <p className="text-xs text-slate-500 uppercase mb-2">Customer</p>
+                    <p className="font-bold text-slate-900 text-lg">{deal.customer_name}</p>
+                    {deal.customer_phone && (
+                        <p className="text-sm text-slate-500">{deal.customer_phone}</p>
+                    )}
+                </div>
+
+                {/* Vehicle */}
+                {deal.vehicle && deal.vehicle.year !== "Unknown" && (
+                    <div className="bg-slate-50 rounded-xl p-4">
+                        <p className="text-xs text-slate-500 uppercase mb-2">Vehicle</p>
+                        <p className="font-semibold text-slate-900">
+                            {deal.vehicle.year} {deal.vehicle.make} {deal.vehicle.model}
+                        </p>
+                    </div>
+                )}
+
+                {/* Deal Value */}
+                <div className="bg-green-50 rounded-xl p-4">
+                    <p className="text-xs text-green-700 uppercase mb-1">Estimated Value</p>
+                    <p className="font-bold text-3xl text-green-600">${deal.value.toLocaleString()}</p>
+                </div>
+
+                {/* Issue/Service */}
+                <div className="bg-slate-50 rounded-xl p-4">
+                    <p className="text-xs text-slate-500 uppercase mb-2">Issue / Service</p>
+                    <p className="text-slate-900">{deal.issue}</p>
+                </div>
+
+                {/* Status */}
+                <div>
+                    <p className="text-xs text-slate-500 uppercase mb-2">Pipeline Stage</p>
+                    <div className="flex gap-1 flex-wrap">
+                        {statusOptions.map(opt => (
+                            <button
+                                key={opt.value}
+                                onClick={() => onStatusChange(deal.id, opt.value)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${deal.status === opt.value
+                                    ? `${opt.color} text-white shadow-sm`
+                                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                    }`}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Source & Time */}
+                <div className="flex items-center justify-between text-sm text-slate-500 pt-2 border-t border-slate-100">
+                    <span className="flex items-center gap-1">
+                        <span className="capitalize">{deal.source.replace("_", " ")}</span>
+                    </span>
+                    <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {formatDistanceToNow(new Date(deal.created_at), { addSuffix: true })}
+                    </span>
+                </div>
+
+                {/* Delete Button */}
+                <div className="pt-4 border-t border-slate-100">
+                    <Button
+                        variant="outline"
+                        className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
+                        onClick={onShowDeleteConfirm}
+                    >
+                        Delete Deal
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ============= CUSTOMER DATABASE COMPONENT =============
 function CustomerDatabase({ onAddDeal }: { onAddDeal: (customer: Customer) => void }) {
+    // Real data will come from database - start empty
+    const customers: Customer[] = [];
+
     const [activeFilter, setActiveFilter] = useState<string>("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [showImportModal, setShowImportModal] = useState(false);
@@ -219,15 +352,15 @@ function CustomerDatabase({ onAddDeal }: { onAddDeal: (customer: Customer) => vo
     const [customSegments, setCustomSegments] = useState<{ id: string; name: string; customerIds: string[] }[]>([]);
 
     const FILTERS = [
-        { id: "all", label: "All Contacts", icon: Users, count: MOCK_CUSTOMERS.length },
-        { id: "vip", label: "VIPs (>$2k)", icon: Crown, count: MOCK_CUSTOMERS.filter(c => c.isVip).length },
-        { id: "fleet", label: "Fleets", icon: Truck, count: MOCK_CUSTOMERS.filter(c => c.isFleet).length },
-        { id: "inactive", label: "Inactive (>1yr)", icon: UserX, count: MOCK_CUSTOMERS.filter(c => new Date(c.lastVisit) < new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)).length },
+        { id: "all", label: "All Contacts", icon: Users, count: customers.length },
+        { id: "vip", label: "VIPs (>$2k)", icon: Crown, count: customers.filter(c => c.isVip).length },
+        { id: "fleet", label: "Fleets", icon: Truck, count: customers.filter(c => c.isFleet).length },
+        { id: "inactive", label: "Inactive (>1yr)", icon: UserX, count: customers.filter(c => new Date(c.lastVisit) < new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)).length },
     ];
 
     const TAGS = ["WinterTires", "AudiClub", "SubaruFan"];
 
-    const filteredCustomers = MOCK_CUSTOMERS.filter(c => {
+    const filteredCustomers = customers.filter(c => {
         if (searchQuery) {
             const q = searchQuery.toLowerCase();
             if (!c.name.toLowerCase().includes(q) && !c.phone.includes(q) && !c.vehicles.some(v => `${v.year} ${v.make} ${v.model}`.toLowerCase().includes(q))) return false;
@@ -279,7 +412,7 @@ function CustomerDatabase({ onAddDeal }: { onAddDeal: (customer: Customer) => vo
     };
 
     const handleBulkAddDeals = () => {
-        const selectedCustomers = MOCK_CUSTOMERS.filter(c => selectedIds.has(c.id));
+        const selectedCustomers = customers.filter(c => selectedIds.has(c.id));
         selectedCustomers.forEach(c => onAddDeal(c));
         toast.success(`Added ${selectedCustomers.length} customers to pipeline!`);
         setSelectedIds(new Set());
@@ -299,7 +432,7 @@ function CustomerDatabase({ onAddDeal }: { onAddDeal: (customer: Customer) => vo
                     <div>
                         <div className="flex items-center justify-between mb-3">
                             <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Smart Segments</h4>
-                            <Badge variant="outline" className="text-xs">{MOCK_CUSTOMERS.length} total</Badge>
+                            <Badge variant="outline" className="text-xs">{customers.length} total</Badge>
                         </div>
                         <div className="space-y-1">
                             {FILTERS.map(f => {
@@ -373,7 +506,7 @@ function CustomerDatabase({ onAddDeal }: { onAddDeal: (customer: Customer) => vo
                     {/* Quick Stats */}
                     <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl p-4 text-white">
                         <p className="text-xs text-slate-400 uppercase font-semibold mb-2">Database Value</p>
-                        <p className="text-2xl font-bold">${MOCK_CUSTOMERS.reduce((sum, c) => sum + c.totalSpend, 0).toLocaleString()}</p>
+                        <p className="text-2xl font-bold">${customers.reduce((sum, c) => sum + c.totalSpend, 0).toLocaleString()}</p>
                         <p className="text-xs text-slate-400 mt-1">Lifetime customer spend</p>
                     </div>
                 </div>
@@ -592,7 +725,7 @@ function CustomerDatabase({ onAddDeal }: { onAddDeal: (customer: Customer) => vo
 
                 {/* IMPORT MODAL */}
                 {showImportModal && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowImportModal(false)}>
+                    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100]" onClick={() => setShowImportModal(false)}>
                         <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-xl font-bold">Import Customer Data</h3>
@@ -602,12 +735,60 @@ function CustomerDatabase({ onAddDeal }: { onAddDeal: (customer: Customer) => vo
                             </div>
                             <p className="text-sm text-slate-600 mb-6">Import your existing customer database from your shop management software.</p>
 
-                            {/* Dropzone */}
-                            <div className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-blue-400 hover:bg-blue-50/50 transition-colors cursor-pointer mb-4">
+                            {/* Dropzone with file input */}
+                            <label className="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-blue-400 hover:bg-blue-50/50 transition-colors cursor-pointer mb-4 block">
+                                <input
+                                    type="file"
+                                    accept=".csv"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+
+                                        const reader = new FileReader();
+                                        reader.onload = (event) => {
+                                            const text = event.target?.result as string;
+                                            if (!text) return;
+
+                                            // Parse CSV
+                                            const lines = text.split('\n');
+                                            const headers = lines[0]?.split(',').map(h => h.trim().toLowerCase());
+
+                                            if (!headers) {
+                                                toast.error("Invalid CSV format");
+                                                return;
+                                            }
+
+                                            let importedCount = 0;
+                                            for (let i = 1; i < lines.length; i++) {
+                                                const values = lines[i].split(',');
+                                                if (values.length < 2) continue;
+
+                                                // Map common CSV headers to customer fields
+                                                const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('customer'));
+                                                const phoneIdx = headers.findIndex(h => h.includes('phone') || h.includes('mobile') || h.includes('cell'));
+
+                                                if (nameIdx >= 0 && values[nameIdx]?.trim()) {
+                                                    importedCount++;
+                                                }
+                                            }
+
+                                            if (importedCount > 0) {
+                                                toast.success(`Successfully parsed ${importedCount} customers from CSV`, {
+                                                    description: "Customer import is currently in preview mode"
+                                                });
+                                            } else {
+                                                toast.error("No valid customer data found in CSV");
+                                            }
+                                            setShowImportModal(false);
+                                        };
+                                        reader.readAsText(file);
+                                    }}
+                                />
                                 <Upload className="h-10 w-10 text-slate-400 mx-auto mb-3" />
                                 <p className="font-medium text-slate-700">Drop your CSV file here or click to browse</p>
                                 <p className="text-sm text-slate-500 mt-2">Supported formats: Mitchell 1, Manager SE, Tekmetric</p>
-                            </div>
+                            </label>
 
                             <div className="grid grid-cols-2 gap-3">
                                 <Button variant="outline" className="h-20 flex-col">
@@ -629,8 +810,55 @@ function CustomerDatabase({ onAddDeal }: { onAddDeal: (customer: Customer) => vo
 
 // ============= MAIN PAGE =============
 export default function PipelinePage() {
-    const [deals, setDeals] = useState<Deal[]>(MOCK_DEALS);
+    const [deals, setDeals] = useState<Deal[]>([]);
     const [activeTab, setActiveTab] = useState<"deals" | "database">("deals");
+    const [isLoading, setIsLoading] = useState(true);
+    const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isCreating, setIsCreating] = useState(false);
+    const [newDealForm, setNewDealForm] = useState({
+        customerName: "",
+        customerPhone: "",
+        issue: "",
+        value: 0,
+        status: "new_inquiry" as Deal["status"]
+    });
+
+    // Fetch deals from database on mount
+    useEffect(() => {
+        async function fetchDeals() {
+            try {
+                const response = await fetch("/api/deals");
+                if (response.ok) {
+                    const data = await response.json();
+                    // Transform database format to component format
+                    const transformedDeals = (data.deals || []).map((d: any) => ({
+                        id: d.id,
+                        vehicle: {
+                            year: d.vehicle_year || "",
+                            make: d.vehicle_make || "Unknown",
+                            model: d.vehicle_model || ""
+                        },
+                        customer_name: d.customer_name || "Unknown",
+                        customer_phone: d.customer_phone || null,
+                        issue: d.title || d.description || "Deal",
+                        value: d.value || 0,
+                        source: d.source || "phone",
+                        created_at: d.created_at,
+                        status: d.status || "new_inquiry"
+                    }));
+                    setDeals(transformedDeals);
+                }
+            } catch (error) {
+                console.error("[Pipeline] Failed to fetch deals:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        }
+        fetchDeals();
+    }, []);
 
     const handleAddDealFromCustomer = (customer: Customer) => {
         const newDeal: Deal = {
@@ -646,46 +874,268 @@ export default function PipelinePage() {
         setDeals(prev => [newDeal, ...prev]);
     };
 
+    const handleCreateDeal = async () => {
+        if (!newDealForm.customerName.trim()) {
+            toast.error("Customer name is required");
+            return;
+        }
+
+        setIsCreating(true);
+        try {
+            const response = await fetch("/api/deals", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    customerName: newDealForm.customerName,
+                    customerPhone: newDealForm.customerPhone || null,
+                    title: newDealForm.issue,
+                    description: newDealForm.issue,
+                    status: newDealForm.status,
+                    value: newDealForm.value,
+                    source: "manual"
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                const newDeal: Deal = {
+                    id: data.deal.id,
+                    vehicle: { year: "", make: "", model: "" },
+                    customer_name: newDealForm.customerName,
+                    customer_phone: newDealForm.customerPhone || undefined,
+                    issue: newDealForm.issue || "New Deal",
+                    value: newDealForm.value,
+                    source: "service_desk",
+                    created_at: new Date().toISOString(),
+                    status: newDealForm.status
+                };
+                setDeals(prev => [newDeal, ...prev]);
+                setShowCreateModal(false);
+                setNewDealForm({ customerName: "", customerPhone: "", issue: "", value: 0, status: "new_inquiry" });
+                toast.success("Deal created!");
+            } else {
+                const error = await response.json();
+                toast.error(`Failed: ${error.error}`);
+            }
+        } catch (error) {
+            toast.error("Failed to create deal");
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
     return (
-        <div className="h-full flex flex-col p-6 bg-slate-100 overflow-hidden">
-            {/* Header */}
-            <div className="mb-4 flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-900">Revenue Pipeline</h1>
-                    <p className="text-slate-500 text-sm">Track leads from inquiry to booked appointment</p>
+        <>
+            {/* Create Deal Modal - Outside main div to cover sidebar */}
+            {showCreateModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]" onClick={() => setShowCreateModal(false)}>
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+                        <h2 className="text-xl font-bold text-slate-900 mb-4">New Deal</h2>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Customer Name *</label>
+                                <Input
+                                    value={newDealForm.customerName}
+                                    onChange={(e) => setNewDealForm(prev => ({ ...prev, customerName: e.target.value }))}
+                                    placeholder="John Doe"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Phone (optional)</label>
+                                <Input
+                                    value={newDealForm.customerPhone}
+                                    onChange={(e) => setNewDealForm(prev => ({ ...prev, customerPhone: e.target.value }))}
+                                    placeholder="+1 555 123 4567"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Issue / Service</label>
+                                <Input
+                                    value={newDealForm.issue}
+                                    onChange={(e) => setNewDealForm(prev => ({ ...prev, issue: e.target.value }))}
+                                    placeholder="Oil change, brake inspection..."
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Estimated Value ($)</label>
+                                <Input
+                                    type="number"
+                                    value={newDealForm.value || ""}
+                                    onChange={(e) => setNewDealForm(prev => ({ ...prev, value: e.target.value === "" ? 0 : parseInt(e.target.value) }))}
+                                    placeholder="0"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Starting Stage</label>
+                                <div className="flex gap-1 flex-wrap">
+                                    {[
+                                        { value: "new_inquiry", label: "New Inquiry" },
+                                        { value: "quote_sent", label: "Quote Sent" },
+                                        { value: "follow_up", label: "Follow-Up" },
+                                        { value: "booked", label: "Booked" }
+                                    ].map(opt => (
+                                        <button
+                                            key={opt.value}
+                                            type="button"
+                                            onClick={() => setNewDealForm(prev => ({ ...prev, status: opt.value as Deal["status"] }))}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${newDealForm.status === opt.value
+                                                ? "bg-slate-900 text-white"
+                                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                                }`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex gap-2 mt-6">
+                            <Button variant="outline" className="flex-1" onClick={() => setShowCreateModal(false)}>
+                                Cancel
+                            </Button>
+                            <Button
+                                className="flex-1 bg-slate-900 hover:bg-slate-800 text-white"
+                                onClick={handleCreateDeal}
+                                disabled={isCreating}
+                            >
+                                {isCreating ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Creating...</> : "Create Deal"}
+                            </Button>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            )}
 
-            {/* Tabs */}
-            <div className="flex gap-2 mb-6">
-                <button
-                    onClick={() => setActiveTab("deals")}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === "deals" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-white"}`}
-                >
-                    <Kanban className="h-4 w-4" />
-                    Active Deals
-                </button>
-                <button
-                    onClick={() => setActiveTab("database")}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === "database" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-white"}`}
-                >
-                    <Database className="h-4 w-4" />
-                    Customer Database
-                </button>
-            </div>
+            {/* Delete Confirmation Modal - At fragment level to cover sidebar */}
+            {showDeleteConfirm && selectedDeal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6 mx-4">
+                        <h3 className="text-lg font-bold text-slate-900 mb-2">Delete Deal?</h3>
+                        <p className="text-sm text-slate-600 mb-4">
+                            This will permanently remove the deal for "{selectedDeal.customer_name}" from your pipeline.
+                        </p>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                className="flex-1"
+                                onClick={() => setShowDeleteConfirm(false)}
+                                disabled={isDeleting}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                                onClick={async () => {
+                                    setIsDeleting(true);
+                                    try {
+                                        const response = await fetch(`/api/deals?id=${selectedDeal.id}`, {
+                                            method: "DELETE"
+                                        });
+                                        if (response.ok) {
+                                            setDeals(prev => prev.filter(d => d.id !== selectedDeal.id));
+                                            setSelectedDeal(null);
+                                            setShowDeleteConfirm(false);
+                                            toast.success("Deal deleted");
+                                        } else {
+                                            toast.error("Failed to delete deal");
+                                        }
+                                    } catch (error) {
+                                        toast.error("Failed to delete deal");
+                                    }
+                                    setIsDeleting(false);
+                                }}
+                                disabled={isDeleting}
+                            >
+                                {isDeleting ? (
+                                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Deleting...</>
+                                ) : (
+                                    "Delete"
+                                )}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
-            {/* Tab Content */}
-            <div className="flex-1 overflow-auto">
-                {activeTab === "deals" && (
-                    <>
-                        <ConversionScoreboard deals={deals} />
-                        <DealBoard deals={deals} setDeals={setDeals} />
-                    </>
-                )}
-                {activeTab === "database" && (
-                    <CustomerDatabase onAddDeal={handleAddDealFromCustomer} />
-                )}
+            <div className="h-full flex flex-col p-6 bg-slate-100 overflow-hidden">
+                {/* Header */}
+                <div className="mb-4 flex items-center justify-between">
+                    <div className="flex items-baseline gap-3">
+                        <h1 className="text-2xl font-bold text-slate-900">Pipeline</h1>
+                        <span className="text-sm text-slate-500">Track leads from inquiry to booked</span>
+                    </div>
+                    <Button
+                        onClick={() => setShowCreateModal(true)}
+                        className="bg-slate-900 hover:bg-slate-800 text-white"
+                    >
+                        <Plus className="h-4 w-4 mr-2" /> New Deal
+                    </Button>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex gap-2 mb-6">
+                    <button
+                        onClick={() => setActiveTab("deals")}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === "deals" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-white"}`}
+                    >
+                        <Kanban className="h-4 w-4" />
+                        Active Deals
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("database")}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === "database" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-white"}`}
+                    >
+                        <Database className="h-4 w-4" />
+                        Customer Database
+                    </button>
+                </div>
+
+                {/* Tab Content */}
+                <div className="flex-1 overflow-auto">
+                    {activeTab === "deals" && (
+                        <>
+                            <ConversionScoreboard deals={deals} />
+                            <DealBoard
+                                deals={deals}
+                                setDeals={setDeals}
+                                onSelectDeal={setSelectedDeal}
+                            />
+                        </>
+                    )}
+                    {activeTab === "database" && (
+                        <CustomerDatabase onAddDeal={handleAddDealFromCustomer} />
+                    )}
+                </div>
+
+                {/* Deal Detail Panel */}
+                <DealDetailPanel
+                    deal={selectedDeal}
+                    isOpen={!!selectedDeal}
+                    onClose={() => setSelectedDeal(null)}
+                    onStatusChange={async (id, status) => {
+                        // Update local state immediately
+                        setDeals(prev => prev.map(d => d.id === id ? { ...d, status } : d));
+                        setSelectedDeal(prev => prev && prev.id === id ? { ...prev, status } : prev);
+
+                        // Persist to database
+                        try {
+                            const response = await fetch("/api/deals", {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ id, status })
+                            });
+                            if (response.ok) {
+                                toast.success(`Status updated to ${status.replace(/_/g, " ")}`);
+                            } else {
+                                toast.error("Failed to save status");
+                            }
+                        } catch (error) {
+                            toast.error("Failed to save status");
+                        }
+                    }}
+                    onShowDeleteConfirm={() => setShowDeleteConfirm(true)}
+                />
             </div>
-        </div>
+        </>
     );
 }
+

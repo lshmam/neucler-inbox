@@ -74,6 +74,10 @@ CREATE TABLE public.customers (
   notes text,
   last_contacted_at timestamp with time zone,
   last_contact_channel text,
+  vehicle_year text,
+  vehicle_make text,
+  vehicle_model text,
+  service_requested text,
   created_at timestamp with time zone DEFAULT now(),
   CONSTRAINT customers_pkey PRIMARY KEY (id, merchant_id),
   CONSTRAINT customers_merchant_id_fkey FOREIGN KEY (merchant_id) REFERENCES public.merchants(platform_merchant_id)

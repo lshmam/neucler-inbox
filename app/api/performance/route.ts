@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase-server";
+import { supabaseAdmin } from "@/lib/supabase";
 import { NextResponse } from "next/server";
 
 interface ScoreData {
@@ -19,7 +20,14 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const merchantId = user.id;
+    // Get the platform_merchant_id (same as other APIs)
+    const { data: merchant } = await supabase
+        .from("merchants")
+        .select("platform_merchant_id")
+        .eq("id", user.id)
+        .single();
+
+    const merchantId = merchant?.platform_merchant_id || user.id;
 
     try {
         // Fetch all tickets with scores for this merchant
@@ -46,7 +54,7 @@ export async function GET(request: Request) {
         let scoresMap: Record<string, ScoreData & { feedback_summary: string }> = {};
 
         if (ticketIds.length > 0) {
-            const { data: scores } = await supabase
+            const { data: scores } = await supabaseAdmin
                 .from("ticket_scores")
                 .select("ticket_id, total_score, quickness_score, knowledge_score, hospitality_score, intro_score, cta_score, feedback_summary")
                 .in("ticket_id", ticketIds);
@@ -183,6 +191,112 @@ export async function GET(request: Request) {
             };
         }).sort((a, b) => b.interactions - a.interactions);
 
+        // Fetch Deepgram analyses for sentiment and speaker data
+        let deepgramStats = {
+            totalAnalyses: 0,
+            sentimentBreakdown: { positive: 0, neutral: 0, negative: 0 },
+            avgAgentTalkRatio: 0,
+            avgCustomerTalkRatio: 0,
+            topTopics: [] as { topic: string; count: number }[],
+        };
+
+        const { data: deepgramAnalyses } = await supabase
+            .from("deepgram_analyses")
+            .select("overall_sentiment, positive_ratio, negative_ratio, neutral_ratio, agent_talk_ratio, customer_talk_ratio, topics")
+            .eq("merchant_id", merchantId)
+            .eq("processing_status", "completed")
+            .order("created_at", { ascending: false })
+            .limit(100);
+
+        if (deepgramAnalyses && deepgramAnalyses.length > 0) {
+            deepgramStats.totalAnalyses = deepgramAnalyses.length;
+
+            let totalAgentRatio = 0;
+            let totalCustomerRatio = 0;
+            const topicCounts: Record<string, number> = {};
+
+            for (const analysis of deepgramAnalyses) {
+                // Sentiment counts
+                if (analysis.overall_sentiment === "positive") deepgramStats.sentimentBreakdown.positive++;
+                else if (analysis.overall_sentiment === "negative") deepgramStats.sentimentBreakdown.negative++;
+                else deepgramStats.sentimentBreakdown.neutral++;
+
+                // Talk ratios
+                totalAgentRatio += analysis.agent_talk_ratio || 0;
+                totalCustomerRatio += analysis.customer_talk_ratio || 0;
+
+                // Topics
+                if (analysis.topics && Array.isArray(analysis.topics)) {
+                    for (const topic of analysis.topics) {
+                        topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+                    }
+                }
+            }
+
+            deepgramStats.avgAgentTalkRatio = totalAgentRatio / deepgramAnalyses.length;
+            deepgramStats.avgCustomerTalkRatio = totalCustomerRatio / deepgramAnalyses.length;
+            deepgramStats.topTopics = Object.entries(topicCounts)
+                .map(([topic, count]) => ({ topic, count }))
+                .sort((a, b) => b.count - a.count)
+                .slice(0, 10);
+        }
+
+        // Fetch call logs for AI vs Human handling stats
+        // Using supabaseAdmin to bypass RLS since call_logs may not have proper RLS policies
+        const { data: callLogs, error: callLogsError } = await supabaseAdmin
+            .from("call_logs")
+            .select("id, status, direction, duration_seconds, call_successful, created_at")
+            .eq("merchant_id", merchantId)
+            .order("created_at", { ascending: false })
+            .limit(500);
+
+        console.log("[Performance API] merchantId:", merchantId, "callLogs count:", callLogs?.length || 0, "error:", callLogsError?.message || "none");
+
+        // Calculate call handling stats
+        const callStats = {
+            totalCalls: 0,
+            inboundCalls: 0,
+            outboundCalls: 0,
+            aiHandledCalls: 0,
+            humanHandledCalls: 0,
+            transferredCalls: 0,
+            successfulCalls: 0,
+            avgDurationSeconds: 0,
+            aiSuccessRate: 0,
+        };
+
+        if (callLogs && callLogs.length > 0) {
+            callStats.totalCalls = callLogs.length;
+
+            let totalDuration = 0;
+            for (const call of callLogs) {
+                // Direction stats
+                if (call.direction === "inbound") callStats.inboundCalls++;
+                if (call.direction === "outbound") callStats.outboundCalls++;
+
+                // Success tracking
+                if (call.call_successful) callStats.successfulCalls++;
+
+                // Duration
+                if (call.duration_seconds) totalDuration += call.duration_seconds;
+
+                // AI vs Human handling - check status for transferred calls
+                const status = (call.status || "").toLowerCase();
+                if (status.includes("transfer") || status.includes("forward") || status.includes("human")) {
+                    callStats.humanHandledCalls++;
+                    callStats.transferredCalls++;
+                } else {
+                    // AI handled if not transferred
+                    callStats.aiHandledCalls++;
+                }
+            }
+
+            callStats.avgDurationSeconds = Math.round(totalDuration / callStats.totalCalls);
+            callStats.aiSuccessRate = callStats.aiHandledCalls > 0
+                ? Math.round((callStats.successfulCalls / callStats.aiHandledCalls) * 100)
+                : 0;
+        }
+
         return NextResponse.json({
             kpis: {
                 avgScore,
@@ -193,7 +307,11 @@ export async function GET(request: Request) {
             radarData,
             activityFeed,
             staffAudit,
-            totalTickets: tickets?.length || 0
+            totalTickets: tickets?.length || 0,
+            // Deepgram analytics
+            deepgramStats,
+            // Call handling stats
+            callStats,
         });
 
     } catch (error: any) {
@@ -201,3 +319,4 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: "Failed to fetch performance data" }, { status: 500 });
     }
 }
+

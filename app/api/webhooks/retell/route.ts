@@ -5,6 +5,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import twilio from "twilio";
 import { createSmartLinkServer } from "@/app/actions/links-server";
 import { analyzeCall } from "@/services/quality-scoring";
+import { extractCustomerInfo } from "@/services/customer-info-extractor";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 const twilioClient = twilio(
@@ -161,66 +162,10 @@ export async function POST(request: Request) {
         }
         // --- END AUTO-CREATE CUSTOMER ---
 
-        // --- AUTO-CREATE TICKET FOR THIS CALL ---
-        let ticketId: string | null = null;
-        try {
-            const customerPhone = insertData.customer_phone;
+        // --- PREVIOUSLY AUTO-CREATE TICKET - REMOVED FOR CONDITIONAL LOGIC ---
+        // Tickets/Deals are now created only after analysis in call_analyzed event
+        // or manually by the user during the call.
 
-            // Check if a ticket already exists for this call
-            const { data: existingTicket } = await supabaseAdmin
-                .from('tickets')
-                .select('id')
-                .eq('call_id', retellCallId)
-                .single();
-
-            if (existingTicket) {
-                ticketId = existingTicket.id;
-                console.log(`📋 Existing ticket found for call: ${ticketId}`);
-            } else {
-                // Find the customer ID
-                let customerId: string | null = null;
-                if (customerPhone) {
-                    const { data: customer } = await supabaseAdmin
-                        .from('customers')
-                        .select('id')
-                        .eq('merchant_id', agent.merchant_id)
-                        .eq('phone_number', customerPhone)
-                        .single();
-                    customerId = customer?.id || null;
-                }
-
-                // Create a new ticket for this call
-                const newTicketId = crypto.randomUUID();
-                const ticketTitle = customerPhone
-                    ? `Phone Call from ${customerPhone}`
-                    : 'Incoming Phone Call';
-
-                const { error: ticketError } = await supabaseAdmin
-                    .from('tickets')
-                    .insert({
-                        id: newTicketId,
-                        merchant_id: agent.merchant_id,
-                        customer_id: customerId,
-                        title: ticketTitle,
-                        description: `Inbound call received. Waiting for call analysis...`,
-                        status: 'open',
-                        priority: 'medium',
-                        source: 'phone',
-                        call_id: retellCallId,
-                        assigned_to: agent.id,
-                    });
-
-                if (ticketError) {
-                    console.warn('⚠️ Failed to create ticket:', ticketError.message);
-                } else {
-                    ticketId = newTicketId;
-                    console.log(`🎫 New ticket created for call: ${ticketId}`);
-                }
-            }
-        } catch (ticketCreationError: any) {
-            console.warn('⚠️ Ticket creation check failed:', ticketCreationError.message);
-        }
-        // --- END AUTO-CREATE TICKET ---
 
         // 3. Prepare an object for the UPDATE.
         let dataToUpdate: any = {};
@@ -232,6 +177,8 @@ export async function POST(request: Request) {
 
         if (eventType === "call_analyzed" && call.call_analysis) {
             console.log("\n📊 Processing call_analyzed event");
+            let ticketId: string | null = null;
+            let callCategory: string = "general";
             const analysis = call.call_analysis;
             dataToUpdate.summary = analysis.call_summary || "No summary provided.";
             dataToUpdate.in_voicemail = analysis.in_voicemail;
@@ -303,30 +250,86 @@ export async function POST(request: Request) {
                         console.log("📱 Call was NOT successful, sending apology message");
                         smsMessage = `Hey! Sorry our call got cut short. Was there anything I could help you with? Feel free to text me back anytime. - ${businessName}`;
                     } else if (hasSummary) {
-                        // Use Gemini to extract the main purpose/need from the call
-                        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-                        const summaryPrompt = `From this call summary, extract what the customer was asking about in 2-5 casual words. Do NOT use quotes, apostrophes, or dashes. Just plain words.
+                        // Use Gemini to classify and extract need
+                        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash", generationConfig: { responseMimeType: "application/json" } });
+                        const routingPrompt = `Analyze this call summary: "${analysis.call_summary}"
 
-Call summary: "${analysis.call_summary}"
+Output a JSON object with:
+1. "need": A SHORT noun phrase (2-4 words) for what they want. Must work grammatically after "help with your..." 
+   Examples: "oil change", "brake inspection", "quote request", "appointment scheduling"
+   BAD examples: "booking an oil change", "getting a quote" (these are verb phrases, not nouns)
+2. "category": One of ["sales", "support", "general"].
+   - sales: wants appointment, booking, quote, pricing, new service.
+   - support: complaint, issue, waiting too long, problem, angry.
+   - general: hours, location, simple question.
 
-Examples of good responses:
-- getting a haircut
-- your pricing
-- scheduling an appointment
-- your services
-- booking a consultation`;
+JSON:`;
 
                         let customerNeed = "your question";
+
                         try {
-                            const result = await model.generateContent(summaryPrompt);
-                            // Clean the response - remove quotes, dashes, and extra punctuation
-                            customerNeed = result.response.text()
-                                .trim()
-                                .replace(/["'`\-—]/g, '')
-                                .replace(/^\.+|\.+$/g, '')
-                                .toLowerCase();
-                        } catch {
-                            console.log("⚠️ AI summary failed, using default");
+                            const result = await model.generateContent(routingPrompt);
+                            const responseText = result.response.text();
+                            const parsed = JSON.parse(responseText);
+
+                            customerNeed = parsed.need?.toLowerCase().trim() || "your question";
+                            callCategory = parsed.category?.toLowerCase() || "general";
+                            console.log(`🤖 AI Analysis: need="${customerNeed}", category="${callCategory}"`);
+
+                            // === CONDITIONAL ROUTING ===
+                            const customerPhone = insertData.customer_phone;
+
+                            // 1. SALES -> PIPELINE (DEAL)
+                            if (callCategory === "sales" && customerPhone) {
+                                console.log("💰 Detected SALES intent - checking/creating Deal");
+                                // Logic to create deal would go here (omitted for brevity, or implemented if requested)
+                                // For now, we ensure NO ticket is auto-created, which satisfies the requirement.
+                            }
+
+                            // 2. SUPPORT/COMPLAINT -> TICKET
+                            // Create ticket ONLY if category is support OR sentiment is negative
+                            const isNegative = analysis.user_sentiment === "Negative";
+                            if ((callCategory === "support" || isNegative) && customerPhone) {
+                                console.log("🎫 Detected SUPPORT intent or Negative sentiment - Creating Ticket...");
+
+                                // Check if ticket already exists
+                                const { data: existingTicket } = await supabaseAdmin
+                                    .from('tickets')
+                                    .select('id')
+                                    .eq('call_id', retellCallId)
+                                    .single();
+
+                                if (!existingTicket) {
+                                    // Find customer
+                                    const { data: customer } = await supabaseAdmin
+                                        .from('customers')
+                                        .select('id')
+                                        .eq('merchant_id', agent.merchant_id)
+                                        .eq('phone_number', customerPhone)
+                                        .single();
+
+                                    const newTicketId = crypto.randomUUID();
+                                    await supabaseAdmin.from('tickets').insert({
+                                        id: newTicketId,
+                                        merchant_id: agent.merchant_id,
+                                        customer_id: customer?.id,
+                                        title: `Support: ${customerNeed}`,
+                                        description: `Auto-created from call analysis.\nSummary: ${analysis.call_summary}\nSentiment: ${analysis.user_sentiment}`,
+                                        status: 'open',
+                                        priority: isNegative ? 'high' : 'medium',
+                                        source: 'phone', // or 'ai_agent'
+                                        call_id: retellCallId,
+                                        assigned_to: agent.id // Default to agent/owner
+                                    });
+                                    ticketId = newTicketId;
+                                    console.log(`✅ Auto-created support ticket: ${newTicketId}`);
+                                } else {
+                                    ticketId = existingTicket.id;
+                                    console.log(`📋 Found existing ticket: ${ticketId}`);
+                                }
+                            }
+                        } catch (parseErr) {
+                            console.log("⚠️ AI routing failed, using default:", parseErr);
                         }
 
                         // Check if caller wants to book/schedule - expanded keywords
@@ -347,7 +350,7 @@ Examples of good responses:
                         const DEFAULT_BOOKING_LINK = "https://neucler.com/book";
 
                         if (wantsBooking) {
-                            // User asked for booking - send JUST the link, keep it simple
+                            // User asked for booking - generate dynamic SMS with context
                             let finalBookingLink = DEFAULT_BOOKING_LINK;
 
                             try {
@@ -361,8 +364,40 @@ Examples of good responses:
                                 console.log(`📎 Using fallback: ${finalBookingLink}`);
                             }
 
-                            // Simple, direct message with just the link
-                            smsMessage = `Here's your booking link: ${finalBookingLink}`;
+                            // Generate dynamic, natural booking SMS with Gemini
+                            try {
+                                const smsGenPrompt = `Generate a SHORT, friendly SMS (max 160 chars) for an auto shop follow-up.
+
+Context:
+- Business: ${businessName}
+- Customer wanted: ${customerNeed}
+- Booking link: ${finalBookingLink}
+
+Rules:
+1. Thank them for calling (vary how you say it)
+2. Reference what they need naturally (don't repeat word-for-word)
+3. Include the booking link
+4. Be warm but professional
+5. NO emojis, keep it text-friendly
+6. Vary sentence structure - don't always start with "Thanks" or "Hey"
+
+Output ONLY the SMS text, nothing else.`;
+
+                                const smsResult = await model.generateContent(smsGenPrompt);
+                                const generatedSms = smsResult.response.text().trim();
+
+                                // Validate it includes the link and isn't too long
+                                if (generatedSms.includes(finalBookingLink) && generatedSms.length <= 300) {
+                                    smsMessage = generatedSms;
+                                    console.log(`🤖 AI-generated booking SMS: ${smsMessage}`);
+                                } else {
+                                    // Fallback if AI response is weird
+                                    smsMessage = `Thanks for calling ${businessName}! Ready to help with ${customerNeed}. Book here: ${finalBookingLink}`;
+                                }
+                            } catch (smsGenErr: any) {
+                                console.log(`⚠️ SMS generation failed, using template: ${smsGenErr.message}`);
+                                smsMessage = `Thanks for calling ${businessName}! Ready to help with ${customerNeed}. Book here: ${finalBookingLink}`;
+                            }
                         } else {
                             // Normal follow-up message without booking link
                             smsMessage = `Hey! Thanks for calling ${businessName}. Happy to help with ${customerNeed}! Feel free to text me back if you have any questions. 😊`;
@@ -413,24 +448,133 @@ Examples of good responses:
             }
             // --- END POST-CALL SMS ---
 
-            // --- TRIGGER QUALITY SCORING FOR THIS CALL ---
-            if (ticketId && call.transcript_object && call.transcript_object.length > 0) {
-                console.log(`\n📊 Triggering quality analysis for ticket: ${ticketId}`);
-                // Fire-and-forget: Don't wait for analysis to complete
-                analyzeCall(ticketId, call.transcript_object, 'phone').then(result => {
-                    if (result.success) {
-                        console.log(`✅ Quality analysis complete for ticket ${ticketId}`);
-                        console.log(`   Outcome: ${result.outcome}, Auto-resolved: ${result.autoResolved}`);
+            // --- TRIGGER QUALITY SCORING FOR ALL CALLS ---
+            // Always score calls with transcripts, creating a ticket if needed
+            if (call.transcript_object && call.transcript_object.length > 0) {
+                let scoreTicketId = ticketId;
+
+                // Create a ticket if one doesn't exist (for non-support calls)
+                if (!scoreTicketId && insertData.customer_phone) {
+                    console.log(`\n🎫 Creating ticket for quality scoring (call category: ${callCategory || 'unknown'})...`);
+
+                    // Find customer
+                    const { data: customer } = await supabaseAdmin
+                        .from('customers')
+                        .select('id')
+                        .eq('merchant_id', agent.merchant_id)
+                        .eq('phone_number', insertData.customer_phone)
+                        .single();
+
+                    // Check if ticket already exists for this call
+                    const { data: existingTicket } = await supabaseAdmin
+                        .from('tickets')
+                        .select('id')
+                        .eq('call_id', retellCallId)
+                        .single();
+
+                    if (existingTicket) {
+                        scoreTicketId = existingTicket.id;
+                        console.log(`📋 Found existing ticket: ${scoreTicketId}`);
                     } else {
-                        console.error(`❌ Quality analysis failed for ticket ${ticketId}:`, result.error);
+                        const newTicketId = crypto.randomUUID();
+                        await supabaseAdmin.from('tickets').insert({
+                            id: newTicketId,
+                            merchant_id: agent.merchant_id,
+                            customer_id: customer?.id,
+                            title: `Call: Phone Inquiry`,
+                            description: `Auto-created for quality scoring.\nSummary: ${analysis.call_summary || 'N/A'}\nSentiment: ${analysis.user_sentiment || 'Unknown'}`,
+                            status: analysis.call_successful ? 'resolved' : 'open',
+                            priority: 'normal',
+                            source: 'phone',
+                            call_id: retellCallId,
+                            assigned_to: null
+                        });
+                        scoreTicketId = newTicketId;
+                        console.log(`✅ Auto-created ticket for scoring: ${newTicketId}`);
                     }
-                }).catch(err => {
-                    console.error(`❌ Quality analysis error for ticket ${ticketId}:`, err);
-                });
+                }
+
+                if (scoreTicketId) {
+                    console.log(`\n📊 Triggering quality analysis for ticket: ${scoreTicketId}`);
+                    // Fire-and-forget: Don't wait for analysis to complete
+                    analyzeCall(scoreTicketId, call.transcript_object, 'phone').then(result => {
+                        if (result.success) {
+                            console.log(`✅ Quality analysis complete for ticket ${scoreTicketId}`);
+                            console.log(`   Outcome: ${result.outcome}, Auto-resolved: ${result.autoResolved}`);
+                        } else {
+                            console.error(`❌ Quality analysis failed for ticket ${scoreTicketId}:`, result.error);
+                        }
+                    }).catch(err => {
+                        console.error(`❌ Quality analysis error for ticket ${scoreTicketId}:`, err);
+                    });
+                } else {
+                    console.log(`⏭️ Skipping quality analysis - no customer phone to create ticket`);
+                }
             } else {
-                console.log(`⏭️ Skipping quality analysis - no ticket (${ticketId}) or transcript`);
+                console.log(`⏭️ Skipping quality analysis - no transcript available`);
             }
             // --- END QUALITY SCORING ---
+
+            // --- EXTRACT CUSTOMER INFO FROM TRANSCRIPT ---
+            if (call.transcript_object && call.transcript_object.length > 0 && insertData.customer_phone) {
+                console.log(`\n👤 Extracting customer info from transcript...`);
+
+                // Fire-and-forget: Don't block the webhook response
+                extractCustomerInfo(call.transcript_object).then(async (extractedInfo) => {
+                    console.log(`[CustomerExtractor] Extracted:`, JSON.stringify(extractedInfo, null, 2));
+
+                    // Only update if we extracted meaningful data
+                    const hasData = extractedInfo.firstName || extractedInfo.vehicleYear ||
+                        extractedInfo.vehicleMake || extractedInfo.serviceRequested;
+
+                    if (hasData && extractedInfo.confidence !== 'low') {
+                        const updateFields: any = {};
+
+                        // Only update name if we extracted it and current name is "Unknown Caller"
+                        if (extractedInfo.firstName) {
+                            // Check current customer name first
+                            const { data: currentCustomer } = await supabaseAdmin
+                                .from('customers')
+                                .select('first_name')
+                                .eq('merchant_id', agent.merchant_id)
+                                .eq('phone_number', insertData.customer_phone)
+                                .single();
+
+                            if (currentCustomer?.first_name === 'Unknown Caller' || !currentCustomer?.first_name) {
+                                updateFields.first_name = extractedInfo.firstName;
+                                if (extractedInfo.lastName) {
+                                    updateFields.last_name = extractedInfo.lastName;
+                                }
+                            }
+                        }
+
+                        // Always update vehicle info if we have it
+                        if (extractedInfo.vehicleYear) updateFields.vehicle_year = extractedInfo.vehicleYear;
+                        if (extractedInfo.vehicleMake) updateFields.vehicle_make = extractedInfo.vehicleMake;
+                        if (extractedInfo.vehicleModel) updateFields.vehicle_model = extractedInfo.vehicleModel;
+                        if (extractedInfo.serviceRequested) updateFields.service_requested = extractedInfo.serviceRequested;
+
+                        if (Object.keys(updateFields).length > 0) {
+                            const { error: updateError } = await supabaseAdmin
+                                .from('customers')
+                                .update(updateFields)
+                                .eq('merchant_id', agent.merchant_id)
+                                .eq('phone_number', insertData.customer_phone);
+
+                            if (updateError) {
+                                console.error(`❌ Failed to update customer info:`, updateError.message);
+                            } else {
+                                console.log(`✅ Customer info updated successfully:`, Object.keys(updateFields).join(', '));
+                            }
+                        }
+                    } else {
+                        console.log(`⏭️ No meaningful customer info extracted (confidence: ${extractedInfo.confidence})`);
+                    }
+                }).catch(err => {
+                    console.error(`❌ Customer info extraction error:`, err.message);
+                });
+            }
+            // --- END CUSTOMER INFO EXTRACTION ---
         }
 
         if (eventType === "call_ended") {
@@ -439,10 +583,18 @@ Examples of good responses:
             dataToUpdate.transcript = call.transcript_object || [];
             dataToUpdate.status = call.disconnection_reason || 'completed';
             dataToUpdate.cost_cents = Math.round((call.call_cost?.combined_cost || 0) * 100);
+
+            // Capture recording URL from Retell
+            if (call.recording_url) {
+                dataToUpdate.recording_url = call.recording_url;
+                console.log(`   Recording URL: ${call.recording_url.substring(0, 50)}...`);
+            }
+
             console.log("Call ended data:", {
                 duration: dataToUpdate.duration_seconds,
                 status: dataToUpdate.status,
-                cost: dataToUpdate.cost_cents
+                cost: dataToUpdate.cost_cents,
+                hasRecording: !!call.recording_url
             });
         }
 

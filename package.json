@@ -11,6 +11,7 @@
     "cleanup:demo": "npx tsx scripts/cleanup-demo-data.ts"
   },
   "dependencies": {
+    "@deepgram/sdk": "^4.11.3",
     "@google/generative-ai": "^0.24.1",
     "@hello-pangea/dnd": "^18.0.1",
     "@radix-ui/react-avatar": "^1.1.11",

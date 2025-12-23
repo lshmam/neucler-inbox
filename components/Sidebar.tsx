@@ -11,7 +11,6 @@ import {
     LineChart,
     BookOpenCheck,
     Radio,
-    CreditCard,
     Settings,
     LogOut,
     ChevronDown
@@ -24,6 +23,7 @@ const NAV_SECTIONS = [
             { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
             { label: "Service Desk", href: "/service-desk", icon: Headset },
             { label: "Pipeline", href: "/pipeline", icon: TrendingUp },
+            { label: "Outreach", href: "/outreach", icon: Radio },
         ]
     },
     {
@@ -31,13 +31,11 @@ const NAV_SECTIONS = [
         items: [
             { label: "Performance", href: "/performance", icon: LineChart },
             { label: "Shop Playbook", href: "/knowledge-base", icon: BookOpenCheck },
-            { label: "Outreach", href: "/outreach", icon: Radio },
         ]
     },
     {
         title: "SYSTEM",
         items: [
-            { label: "Billing", href: "/billing", icon: CreditCard },
             { label: "Settings", href: "/settings", icon: Settings },
         ]
     }

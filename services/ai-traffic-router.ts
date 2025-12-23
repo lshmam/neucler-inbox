@@ -300,7 +300,7 @@ async function escalateToHuman(
             : "Escalated by AI";
 
     await addSystemNote(
-        ticketId,
+        ticketId!,
         `🤖 AI could not fully resolve -> Escalated to Human\nReason: ${reason}\nIntent: ${analysis.intent}\nComplexity: ${analysis.is_complex ? "High" : "Normal"}`
     );
 

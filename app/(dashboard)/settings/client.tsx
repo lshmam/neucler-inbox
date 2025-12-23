@@ -22,7 +22,7 @@ import {
     Upload, Mail, Phone, MapPin, Clock, Plus,
     Copy, Check, Link2, Calendar, Webhook,
     Trash2, Settings, Info, Crown, ShieldCheck, User, Loader2, AlertCircle,
-    Bot, Mic, Sparkles, Search
+    Bot, Mic, Sparkles, Search, CreditCard, ArrowRight, DollarSign
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
@@ -228,7 +228,7 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
     return (
         <div className="flex-1 space-y-6 p-8 pt-6">
             <Tabs defaultValue="general" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+                <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
                     <TabsTrigger value="general" className="gap-2">
                         <Building2 className="h-4 w-4" /> General
                     </TabsTrigger>
@@ -243,6 +243,9 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
                     </TabsTrigger>
                     <TabsTrigger value="widget" className="gap-2">
                         <Globe className="h-4 w-4" /> Site Widget
+                    </TabsTrigger>
+                    <TabsTrigger value="billing" className="gap-2">
+                        <CreditCard className="h-4 w-4" /> Billing
                     </TabsTrigger>
                 </TabsList>
 
@@ -1137,6 +1140,115 @@ export function SettingsClient({ merchantId, businessName, profile }: SettingsCl
                             </div>
                         </CardContent>
                     </Card>
+                </TabsContent>
+
+                {/* TAB: BILLING */}
+                <TabsContent value="billing" className="space-y-6">
+                    {/* SUBSCRIPTION SECTION */}
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                            <Crown className="h-5 w-5 text-amber-500" />
+                            <h3 className="text-xl font-semibold">Current Plan</h3>
+                        </div>
+
+                        <Card className="border-2 border-blue-100 bg-gradient-to-br from-blue-50/50 to-white">
+                            <CardHeader>
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <div className="flex items-center gap-3">
+                                            <CardTitle className="text-2xl">Pro</CardTitle>
+                                            <Badge className="bg-amber-100 text-amber-700 border-amber-200">Trial</Badge>
+                                        </div>
+                                        <CardDescription className="mt-1">
+                                            Automate everything and grow faster
+                                        </CardDescription>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-3xl font-bold text-blue-600">
+                                            $149
+                                            <span className="text-sm font-normal text-muted-foreground">/mo</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="flex flex-wrap gap-3 mb-6">
+                                    {[
+                                        "Everything in Starter",
+                                        "AI Smart-Filter Call Routing",
+                                        "Active Agent Copilot",
+                                        "Automated Missed Call Rescue",
+                                        "Smart Capacity Waitlist",
+                                        "AI Voice Receptionists"
+                                    ].map((feature, i) => (
+                                        <div key={i} className="flex items-center gap-1.5 text-sm text-slate-700 bg-white px-3 py-1.5 rounded-full border">
+                                            <Check className="h-4 w-4 text-green-500" />
+                                            {feature}
+                                        </div>
+                                    ))}
+                                </div>
+                                <Button
+                                    onClick={async () => {
+                                        try {
+                                            const res = await fetch("/api/stripe/portal", { method: "POST" });
+                                            const data = await res.json();
+                                            if (data.url) window.location.href = data.url;
+                                        } catch (e) {
+                                            console.error(e);
+                                        }
+                                    }}
+                                    className="bg-blue-600 hover:bg-blue-700"
+                                >
+                                    Manage Subscription
+                                    <ArrowRight className="ml-2 h-4 w-4" />
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* USAGE & OVERAGES SECTION - COMMENTED OUT */}
+                    {/*
+                    <Separator />
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                            <DollarSign className="h-5 w-5 text-blue-500" />
+                            <div>
+                                <h3 className="text-xl font-semibold">Usage & Overages</h3>
+                                <p className="text-sm text-muted-foreground">
+                                    Usage fees for telephony and AI are billed in addition to your monthly subscription.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                            Usage cards would go here
+                        </div>
+                    </div>
+                    */}
+
+                    {/* PAYMENT METHOD SECTION - COMMENTED OUT */}
+                    {/*
+                    <Separator />
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2">
+                            <CreditCard className="h-5 w-5 text-slate-500" />
+                            <h3 className="text-xl font-semibold">Payment Method</h3>
+                        </div>
+                        <Card>
+                            <CardContent className="flex items-center justify-between p-6">
+                                <div className="flex items-center gap-4">
+                                    <div className="h-12 w-16 bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg flex items-center justify-center">
+                                        <span className="text-white font-bold text-sm">VISA</span>
+                                    </div>
+                                    <div>
+                                        <p className="font-medium">Visa ending in 4242</p>
+                                        <p className="text-sm text-muted-foreground">Expires 12/2025</p>
+                                    </div>
+                                </div>
+                                <Button variant="outline">Update</Button>
+                            </CardContent>
+                        </Card>
+                    </div>
+                    */}
                 </TabsContent>
             </Tabs >
         </div >

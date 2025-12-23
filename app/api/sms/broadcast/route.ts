@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     if (!merchantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     try {
-        const { name, audience, message } = await request.json();
+        const { name, audience, message, customerIds, tags } = await request.json();
 
         // 1. Get Sender Number (From AI Agent Config)
         const { data: agent } = await supabaseAdmin
@@ -29,15 +29,23 @@ export async function POST(request: Request) {
             .eq("platform_merchant_id", merchantId)
             .single();
 
-        // 3. Fetch Audience
+        // 3. Fetch Audience - support multiple methods
         let query = supabaseAdmin
             .from("customers")
-            .select("phone_number, first_name")
+            .select("id, phone_number, first_name")
             .eq("merchant_id", merchantId)
-            .neq("phone_number", null); // Ensure not null
+            .neq("phone_number", null);
 
-        if (audience === "vip") {
-            // Check if you actually have this column in your DB, otherwise remove this line
+        // Option A: Filter by specific customer IDs (from tag groups)
+        if (customerIds && customerIds.length > 0) {
+            query = query.in("id", customerIds);
+        }
+        // Option B: Filter by tags array
+        else if (tags && tags.length > 0) {
+            query = query.overlaps("tags", tags);
+        }
+        // Option C: Legacy audience string support
+        else if (audience === "vip") {
             query = query.gt("total_spend_cents", 50000);
         }
 
@@ -49,9 +57,7 @@ export async function POST(request: Request) {
 
         // 4. Construct Message
         const businessName = merchant?.business_name || "Us";
-        const prefix = `Hi %Name%, this is ${businessName}.`;
         const suffix = `\nReply STOP to opt out.`; // Good compliance practice
-        const fullTemplate = `${prefix} ${message} ${suffix}`;
 
         // 5. Send Loop
         // Filter out bad numbers first
@@ -59,7 +65,19 @@ export async function POST(request: Request) {
         let sentCount = 0;
 
         const promises = validCustomers.map(async (c) => {
-            const personalizedBody = fullTemplate.replace("%Name%", c.first_name || "there");
+            // Check if customer name is valid (not unknown/empty)
+            const hasValidName = c.first_name &&
+                !c.first_name.toLowerCase().includes('unknown') &&
+                c.first_name.toLowerCase() !== 'caller' &&
+                c.first_name.trim().length > 0;
+
+            // Build personalized message
+            let personalizedBody: string;
+            if (hasValidName) {
+                personalizedBody = `Hi ${c.first_name}, this is ${businessName}. ${message.trim()}${suffix}`;
+            } else {
+                personalizedBody = `Hi, this is ${businessName}. ${message.trim()}${suffix}`;
+            }
 
             try {
                 await twilioClient.messages.create({
@@ -87,13 +105,20 @@ export async function POST(request: Request) {
         await Promise.all(promises);
 
         // 6. Log Campaign & RETURN IT (Crucial Step)
+        // Build audience string from tags, customerIds, or legacy audience
+        const audienceLabel = tags?.length > 0
+            ? tags.join(", ")
+            : customerIds?.length > 0
+                ? `${customerIds.length} customers`
+                : audience || "all";
+
         const { data: campaign, error: insertError } = await supabaseAdmin
             .from("sms_campaigns")
             .insert({
                 merchant_id: merchantId,
                 name: name,
                 message_body: message, // Log original message
-                audience: audience,
+                audience: audienceLabel,
                 status: "sent",
                 recipient_count: sentCount,
                 created_at: new Date().toISOString()

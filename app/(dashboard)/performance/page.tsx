@@ -9,7 +9,7 @@ import {
 import {
     Activity, Clock, Target, TrendingUp, TrendingDown,
     Trophy, Lightbulb, Heart, MessageCircle, Users, AlertTriangle,
-    DollarSign, Flame, BarChart3
+    DollarSign, Flame, BarChart3, Mic, Smile, Meh, Frown, Hash
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,90 +18,51 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { PageLoader } from "@/components/ui/page-loader";
 import { toast } from "sonner";
 
-// ============= MOCK DATA =============
-const MOCK_DATA = {
+// ============= DEFAULT EMPTY DATA =============
+const EMPTY_DATA = {
     kpis: {
-        avgScore: 84,
-        avgResolutionHours: 2.4,
-        bookingRate: 67,
-        trend: 2.4
+        avgScore: 0,
+        avgResolutionHours: 0,
+        bookingRate: 0,
+        trend: 0
     },
     radarData: [
-        { category: "Speed", teamAvg: 17, goal: 16 },
-        { category: "Knowledge", teamAvg: 14, goal: 16 },
-        { category: "Hospitality", teamAvg: 18, goal: 16 },
-        { category: "Process", teamAvg: 15, goal: 16 },
-        { category: "Closing", teamAvg: 16, goal: 16 },
+        { category: "Speed", teamAvg: 0, goal: 16 },
+        { category: "Knowledge", teamAvg: 0, goal: 16 },
+        { category: "Hospitality", teamAvg: 0, goal: 16 },
+        { category: "Process", teamAvg: 0, goal: 16 },
+        { category: "Closing", teamAvg: 0, goal: 16 },
     ],
-    activityFeed: [
-        { ticketId: "1", title: "Oil change inquiry - Great upsell", score: 94, feedbackSummary: "Excellent greeting, smooth transition to premium package recommendation. Customer booked full service.", type: "high_performance", createdAt: "2024-12-18T15:30:00Z", likes: 5 },
-        { ticketId: "2", title: "Brake inspection call", score: 62, feedbackSummary: "Missed opportunity to book appointment. Consider asking more probing questions about symptoms.", type: "learning", createdAt: "2024-12-18T14:20:00Z", likes: 0 },
-        { ticketId: "3", title: "Transmission service - Perfect close", score: 98, feedbackSummary: "Flawless call handling. Built rapport, addressed concerns, secured booking within 3 minutes.", type: "high_performance", createdAt: "2024-12-18T12:45:00Z", likes: 12 },
-        { ticketId: "4", title: "Tire rotation request", score: 65, feedbackSummary: "Good product knowledge but forgot to offer courtesy inspection. Add to standard process.", type: "learning", createdAt: "2024-12-18T11:15:00Z", likes: 1 },
-    ],
-    staffAudit: [
-        { id: "1", name: "AI Agent", interactions: 145, consistencyScore: 86, primaryVariance: "Closing", varianceScore: 14 },
-        { id: "2", name: "Mike T.", interactions: 52, consistencyScore: 79, primaryVariance: "Speed", varianceScore: 12 },
-        { id: "3", name: "Sarah K.", interactions: 38, consistencyScore: 91, primaryVariance: "Process", varianceScore: 15 },
-        { id: "4", name: "James R.", interactions: 27, consistencyScore: 74, primaryVariance: "Knowledge", varianceScore: 11 },
-    ],
-    revenueCapture: [
-        { agent: "AI Agent", quoted: 48000, booked: 41000 },
-        { agent: "Mike T.", quoted: 22000, booked: 15000 },
-        { agent: "Sarah K.", quoted: 18000, booked: 16500 },
-        { agent: "James R.", quoted: 12000, booked: 7500 },
-    ],
-    objections: [
-        { reason: "Price Too High", count: 34 },
-        { reason: "Can't Wait", count: 28 },
-        { reason: "Need Spousal Approval", count: 19 },
-        { reason: "Shopping Around", count: 15 },
-    ],
-    trendHistory: [
-        { week: "W1", score: 72 },
-        { week: "W2", score: 74 },
-        { week: "W3", score: 71 },
-        { week: "W4", score: 78 },
-        { week: "W5", score: 80 },
-        { week: "W6", score: 79 },
-        { week: "W7", score: 82 },
-        { week: "W8", score: 84 },
-    ],
-    volumeHeatmap: [
-        // Day 0 = Mon, hours 7-18 (7am-6pm)
-        { day: 0, hour: 7, volume: 2 }, { day: 0, hour: 8, volume: 8 }, { day: 0, hour: 9, volume: 15 },
-        { day: 0, hour: 10, volume: 18 }, { day: 0, hour: 11, volume: 12 }, { day: 0, hour: 12, volume: 8 },
-        { day: 0, hour: 13, volume: 10 }, { day: 0, hour: 14, volume: 14 }, { day: 0, hour: 15, volume: 16 },
-        { day: 0, hour: 16, volume: 20 }, { day: 0, hour: 17, volume: 15 }, { day: 0, hour: 18, volume: 5 },
-        { day: 1, hour: 7, volume: 3 }, { day: 1, hour: 8, volume: 10 }, { day: 1, hour: 9, volume: 14 },
-        { day: 1, hour: 10, volume: 16 }, { day: 1, hour: 11, volume: 11 }, { day: 1, hour: 12, volume: 6 },
-        { day: 1, hour: 13, volume: 9 }, { day: 1, hour: 14, volume: 12 }, { day: 1, hour: 15, volume: 15 },
-        { day: 1, hour: 16, volume: 18 }, { day: 1, hour: 17, volume: 12 }, { day: 1, hour: 18, volume: 4 },
-        { day: 2, hour: 7, volume: 1 }, { day: 2, hour: 8, volume: 7 }, { day: 2, hour: 9, volume: 12 },
-        { day: 2, hour: 10, volume: 14 }, { day: 2, hour: 11, volume: 10 }, { day: 2, hour: 12, volume: 5 },
-        { day: 2, hour: 13, volume: 8 }, { day: 2, hour: 14, volume: 11 }, { day: 2, hour: 15, volume: 13 },
-        { day: 2, hour: 16, volume: 17 }, { day: 2, hour: 17, volume: 11 }, { day: 2, hour: 18, volume: 3 },
-        { day: 3, hour: 7, volume: 2 }, { day: 3, hour: 8, volume: 9 }, { day: 3, hour: 9, volume: 16 },
-        { day: 3, hour: 10, volume: 22 }, { day: 3, hour: 11, volume: 15 }, { day: 3, hour: 12, volume: 9 },
-        { day: 3, hour: 13, volume: 12 }, { day: 3, hour: 14, volume: 18 }, { day: 3, hour: 15, volume: 21 },
-        { day: 3, hour: 16, volume: 25 }, { day: 3, hour: 17, volume: 18 }, { day: 3, hour: 18, volume: 6 },
-        { day: 4, hour: 7, volume: 4 }, { day: 4, hour: 8, volume: 11 }, { day: 4, hour: 9, volume: 18 },
-        { day: 4, hour: 10, volume: 20 }, { day: 4, hour: 11, volume: 14 }, { day: 4, hour: 12, volume: 8 },
-        { day: 4, hour: 13, volume: 11 }, { day: 4, hour: 14, volume: 15 }, { day: 4, hour: 15, volume: 19 },
-        { day: 4, hour: 16, volume: 23 }, { day: 4, hour: 17, volume: 16 }, { day: 4, hour: 18, volume: 7 },
-        { day: 5, hour: 7, volume: 5 }, { day: 5, hour: 8, volume: 12 }, { day: 5, hour: 9, volume: 10 },
-        { day: 5, hour: 10, volume: 8 }, { day: 5, hour: 11, volume: 6 }, { day: 5, hour: 12, volume: 4 },
-        { day: 5, hour: 13, volume: 3 }, { day: 5, hour: 14, volume: 2 }, { day: 5, hour: 15, volume: 0 },
-        { day: 5, hour: 16, volume: 0 }, { day: 5, hour: 17, volume: 0 }, { day: 5, hour: 18, volume: 0 },
-        { day: 6, hour: 7, volume: 0 }, { day: 6, hour: 8, volume: 0 }, { day: 6, hour: 9, volume: 0 },
-        { day: 6, hour: 10, volume: 0 }, { day: 6, hour: 11, volume: 0 }, { day: 6, hour: 12, volume: 0 },
-        { day: 6, hour: 13, volume: 0 }, { day: 6, hour: 14, volume: 0 }, { day: 6, hour: 15, volume: 0 },
-        { day: 6, hour: 16, volume: 0 }, { day: 6, hour: 17, volume: 0 }, { day: 6, hour: 18, volume: 0 },
-    ],
-    totalTickets: 262
+    activityFeed: [],
+    staffAudit: [],
+    revenueCapture: [],
+    objections: [],
+    trendHistory: [],
+    volumeHeatmap: [],
+    totalTickets: 0
 };
 
 // ============= TYPES =============
+interface DeepgramStats {
+    totalAnalyses: number;
+    sentimentBreakdown: { positive: number; neutral: number; negative: number };
+    avgAgentTalkRatio: number;
+    avgCustomerTalkRatio: number;
+    topTopics: { topic: string; count: number }[];
+}
+
+interface CallStats {
+    totalCalls: number;
+    inboundCalls: number;
+    outboundCalls: number;
+    aiHandledCalls: number;
+    humanHandledCalls: number;
+    transferredCalls: number;
+    successfulCalls: number;
+    avgDurationSeconds: number;
+    aiSuccessRate: number;
+}
+
 interface PerformanceData {
     kpis: { avgScore: number; avgResolutionHours: number; bookingRate: number; trend: number };
     radarData: { category: string; teamAvg: number; goal: number }[];
@@ -112,6 +73,8 @@ interface PerformanceData {
     trendHistory: { week: string; score: number }[];
     volumeHeatmap: { day: number; hour: number; volume: number }[];
     totalTickets: number;
+    deepgramStats?: DeepgramStats;
+    callStats?: CallStats;
 }
 
 // ============= KPI HEADER =============
@@ -174,7 +137,7 @@ function KPIHeader({ kpis }: { kpis: PerformanceData["kpis"] }) {
 
 // ============= REVENUE CAPTURE WIDGET =============
 function RevenueCaptureWidget({ data }: { data: PerformanceData["revenueCapture"] }) {
-    const safeData = data || MOCK_DATA.revenueCapture;
+    const safeData = data || EMPTY_DATA.revenueCapture;
     const totalQuoted = safeData.reduce((sum, d) => sum + d.quoted, 0);
     const totalBooked = safeData.reduce((sum, d) => sum + d.booked, 0);
     const leakage = totalQuoted - totalBooked;
@@ -214,7 +177,7 @@ function RevenueCaptureWidget({ data }: { data: PerformanceData["revenueCapture"
 
 // ============= OBJECTION ANALYSIS =============
 function ObjectionAnalysis({ data }: { data: PerformanceData["objections"] }) {
-    const safeData = data || MOCK_DATA.objections;
+    const safeData = data || EMPTY_DATA.objections;
     const colors = ["#ef4444", "#f97316", "#eab308", "#6b7280"];
     const maxCount = Math.max(...safeData.map(d => d.count), 1);
 
@@ -252,7 +215,7 @@ function ObjectionAnalysis({ data }: { data: PerformanceData["objections"] }) {
 
 // ============= TREND HISTORY =============
 function TrendHistory({ data }: { data: PerformanceData["trendHistory"] }) {
-    const safeData = data || MOCK_DATA.trendHistory;
+    const safeData = data || EMPTY_DATA.trendHistory;
     return (
         <Card className="bg-white border-gray-300 shadow-sm">
             <CardHeader className="pb-2">
@@ -280,7 +243,7 @@ function TrendHistory({ data }: { data: PerformanceData["trendHistory"] }) {
 
 // ============= VOLUME HEATMAP =============
 function VolumeHeatmap({ data }: { data: PerformanceData["volumeHeatmap"] }) {
-    const safeData = data || MOCK_DATA.volumeHeatmap;
+    const safeData = data || EMPTY_DATA.volumeHeatmap;
     const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     const hours = [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
     const maxVolume = Math.max(...safeData.map(d => d.volume), 1);
@@ -354,6 +317,108 @@ function VolumeHeatmap({ data }: { data: PerformanceData["volumeHeatmap"] }) {
     );
 }
 
+// ============= CALL HANDLING WIDGET =============
+function CallHandlingWidget({ data }: { data: CallStats | undefined }) {
+    const stats = data || {
+        totalCalls: 0,
+        inboundCalls: 0,
+        outboundCalls: 0,
+        aiHandledCalls: 0,
+        humanHandledCalls: 0,
+        transferredCalls: 0,
+        successfulCalls: 0,
+        avgDurationSeconds: 0,
+        aiSuccessRate: 0,
+    };
+
+    const aiPercentage = stats.totalCalls > 0
+        ? Math.round((stats.aiHandledCalls / stats.totalCalls) * 100)
+        : 0;
+    const humanPercentage = 100 - aiPercentage;
+
+    const formatDuration = (seconds: number) => {
+        if (seconds < 60) return `${seconds}s`;
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}m ${secs}s`;
+    };
+
+    return (
+        <Card className="bg-white border-gray-300 shadow-sm">
+            <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2">
+                    <Activity className="h-5 w-5" /> Call Handling
+                </CardTitle>
+                <CardDescription>AI Agent vs Human pickup rates</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {stats.totalCalls > 0 ? (
+                    <div className="space-y-4">
+                        {/* Total Calls Summary */}
+                        <div className="grid grid-cols-3 gap-4 text-center">
+                            <div className="p-3 bg-gray-50 rounded-lg">
+                                <p className="text-2xl font-bold text-gray-900">{stats.totalCalls}</p>
+                                <p className="text-xs text-gray-500">Total Calls</p>
+                            </div>
+                            <div className="p-3 bg-blue-50 rounded-lg">
+                                <p className="text-2xl font-bold text-blue-600">{stats.aiSuccessRate}%</p>
+                                <p className="text-xs text-blue-600">AI Success Rate</p>
+                            </div>
+                            <div className="p-3 bg-gray-50 rounded-lg">
+                                <p className="text-2xl font-bold text-gray-900">{formatDuration(stats.avgDurationSeconds)}</p>
+                                <p className="text-xs text-gray-500">Avg Duration</p>
+                            </div>
+                        </div>
+
+                        {/* AI vs Human Bar */}
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                                <span className="font-medium text-gray-700">Call Handler Distribution</span>
+                            </div>
+                            <div className="h-8 bg-gray-100 rounded-full overflow-hidden flex">
+                                <div
+                                    className="h-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold"
+                                    style={{ width: `${aiPercentage}%` }}
+                                >
+                                    {aiPercentage > 15 && `${aiPercentage}%`}
+                                </div>
+                                <div
+                                    className="h-full bg-green-500 flex items-center justify-center text-white text-xs font-bold"
+                                    style={{ width: `${humanPercentage}%` }}
+                                >
+                                    {humanPercentage > 15 && `${humanPercentage}%`}
+                                </div>
+                            </div>
+                            <div className="flex justify-between text-xs text-gray-500">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 bg-blue-600 rounded" />
+                                    <span>AI Handled: {stats.aiHandledCalls}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <div className="w-3 h-3 bg-green-500 rounded" />
+                                    <span>Human/Transferred: {stats.humanHandledCalls}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Call Direction */}
+                        <div className="flex justify-between text-sm pt-2 border-t">
+                            <span className="text-gray-500">📞 Inbound: {stats.inboundCalls}</span>
+                            <span className="text-gray-500">📲 Outbound: {stats.outboundCalls}</span>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="text-center py-8 text-gray-400">
+                        <Activity className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <p>No call data yet</p>
+                        <p className="text-xs mt-1">Call stats will appear once calls are logged</p>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 // ============= TEAM SKILL RADAR (Full Size) =============
 function TeamSkillRadarFull({ data }: { data: PerformanceData["radarData"] }) {
     return (
@@ -367,7 +432,7 @@ function TeamSkillRadarFull({ data }: { data: PerformanceData["radarData"] }) {
             <CardContent>
                 <div className="h-[350px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                        <RadarChart cx="50%" cy="50%" outerRadius="75%" data={data || MOCK_DATA.radarData}>
+                        <RadarChart cx="50%" cy="50%" outerRadius="75%" data={data || EMPTY_DATA.radarData}>
                             <PolarGrid stroke="#e5e7eb" />
                             <PolarAngleAxis dataKey="category" tick={{ fill: "#6b7280", fontSize: 12, fontWeight: 500 }} />
                             <PolarRadiusAxis angle={30} domain={[0, 20]} tick={{ fill: "#9ca3af", fontSize: 10 }} />
@@ -529,9 +594,8 @@ function StaffAuditTable({ data }: { data: PerformanceData["staffAudit"] }) {
 
 // ============= MAIN PAGE =============
 export default function PerformancePage() {
-    const [data, setData] = useState<PerformanceData>(MOCK_DATA);
+    const [data, setData] = useState<PerformanceData>(EMPTY_DATA);
     const [loading, setLoading] = useState(true);
-    const [useMockData, setUseMockData] = useState(false);
     const [activeTab, setActiveTab] = useState("overview");
 
     useEffect(() => {
@@ -540,13 +604,11 @@ export default function PerformancePage() {
                 const res = await fetch("/api/performance");
                 if (!res.ok) throw new Error("Failed to fetch");
                 const json = await res.json();
-                if (json.totalTickets && json.totalTickets > 0) {
-                    setData({ ...MOCK_DATA, ...json }); // Merge mock for new fields
-                } else {
-                    setUseMockData(true);
-                }
-            } catch {
-                setUseMockData(true);
+                // Use real data, fall back to empty for missing fields
+                setData({ ...EMPTY_DATA, ...json });
+            } catch (error) {
+                console.error("Failed to fetch performance data:", error);
+                toast.error("Failed to load performance data");
             } finally {
                 setLoading(false);
             }
@@ -560,18 +622,27 @@ export default function PerformancePage() {
 
     const tabs = [
         { id: "overview", label: "Overview", icon: Target },
+        { id: "insights", label: "Call Insights", icon: Mic },
         { id: "financial", label: "Financial", icon: DollarSign },
         { id: "operations", label: "Operations", icon: Flame },
     ];
 
+    // Deepgram stats with defaults
+    const deepgramStats = data.deepgramStats || {
+        totalAnalyses: 0,
+        sentimentBreakdown: { positive: 0, neutral: 0, negative: 0 },
+        avgAgentTalkRatio: 0,
+        avgCustomerTalkRatio: 0,
+        topTopics: [],
+    };
+
     return (
         <div className="flex-1 space-y-6 p-8 pt-6 bg-gray-100 min-h-screen">
-            {/* Demo Mode Badge */}
-            {useMockData && (
-                <div className="flex justify-end">
-                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Demo Mode</Badge>
-                </div>
-            )}
+            {/* Compact Header */}
+            <div className="flex items-baseline gap-3">
+                <h1 className="text-2xl font-bold text-slate-900">Performance</h1>
+                <span className="text-sm text-slate-500">AI agent health & revenue metrics</span>
+            </div>
 
             {/* KPI Cards - Always visible */}
             <KPIHeader kpis={data.kpis} />
@@ -596,6 +667,9 @@ export default function PerformancePage() {
             {/* Tab Content */}
             {activeTab === "overview" && (
                 <div className="space-y-6">
+                    {/* Call Handling Stats */}
+                    <CallHandlingWidget data={data.callStats} />
+
                     {/* Main Content Grid - Radar and Activity Feed */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-2">
@@ -618,6 +692,146 @@ export default function PerformancePage() {
                         <ObjectionAnalysis data={data.objections} />
                     </div>
                     <TrendHistory data={data.trendHistory} />
+                </div>
+            )}
+
+            {activeTab === "insights" && (
+                <div className="space-y-6">
+                    {/* Analytics Header */}
+                    <div className="flex items-center gap-2">
+                        <Mic className="h-5 w-5 text-blue-600" />
+                        <span className="text-sm text-slate-500">
+                            {deepgramStats.totalAnalyses > 0
+                                ? `${deepgramStats.totalAnalyses} calls analyzed with Neucler AI Analytics`
+                                : "No call analyses yet. Calls will be automatically analyzed."}
+                        </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Sentiment Distribution */}
+                        <Card className="bg-white border-gray-300 shadow-sm">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="flex items-center gap-2 text-base">
+                                    <Smile className="h-5 w-5" /> Call Sentiment
+                                </CardTitle>
+                                <CardDescription>Emotional tone across calls</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {deepgramStats.totalAnalyses > 0 ? (
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-3">
+                                            <Smile className="h-4 w-4 text-green-500" />
+                                            <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full bg-green-500 rounded-full"
+                                                    style={{ width: `${(deepgramStats.sentimentBreakdown.positive / deepgramStats.totalAnalyses) * 100}%` }}
+                                                />
+                                            </div>
+                                            <span className="text-sm font-mono w-10 text-right">{deepgramStats.sentimentBreakdown.positive}</span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <Meh className="h-4 w-4 text-yellow-500" />
+                                            <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full bg-yellow-500 rounded-full"
+                                                    style={{ width: `${(deepgramStats.sentimentBreakdown.neutral / deepgramStats.totalAnalyses) * 100}%` }}
+                                                />
+                                            </div>
+                                            <span className="text-sm font-mono w-10 text-right">{deepgramStats.sentimentBreakdown.neutral}</span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <Frown className="h-4 w-4 text-red-500" />
+                                            <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full bg-red-500 rounded-full"
+                                                    style={{ width: `${(deepgramStats.sentimentBreakdown.negative / deepgramStats.totalAnalyses) * 100}%` }}
+                                                />
+                                            </div>
+                                            <span className="text-sm font-mono w-10 text-right">{deepgramStats.sentimentBreakdown.negative}</span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-6 text-gray-400">No sentiment data yet</div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Speaker Talk Ratio */}
+                        <Card className="bg-white border-gray-300 shadow-sm">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="flex items-center gap-2 text-base">
+                                    <Users className="h-5 w-5" /> Talk Ratio
+                                </CardTitle>
+                                <CardDescription>Agent vs Customer speaking time</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {deepgramStats.totalAnalyses > 0 ? (
+                                    <div className="space-y-4">
+                                        <div className="h-4 bg-gray-100 rounded-full overflow-hidden flex">
+                                            <div
+                                                className="h-full bg-blue-600"
+                                                style={{ width: `${deepgramStats.avgAgentTalkRatio * 100}%` }}
+                                            />
+                                            <div
+                                                className="h-full bg-green-500"
+                                                style={{ width: `${deepgramStats.avgCustomerTalkRatio * 100}%` }}
+                                            />
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-3 h-3 bg-blue-600 rounded" />
+                                                <span>Agent: {(deepgramStats.avgAgentTalkRatio * 100).toFixed(0)}%</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-3 h-3 bg-green-500 rounded" />
+                                                <span>Customer: {(deepgramStats.avgCustomerTalkRatio * 100).toFixed(0)}%</span>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-gray-400 text-center">
+                                            {deepgramStats.avgAgentTalkRatio > 0.6
+                                                ? "⚠️ Agents talking more than listening"
+                                                : deepgramStats.avgCustomerTalkRatio > 0.65
+                                                    ? "✅ Good listening - customers talking more"
+                                                    : "📊 Balanced conversation"}
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-6 text-gray-400">No talk ratio data yet</div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Top Topics */}
+                        <Card className="bg-white border-gray-300 shadow-sm">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="flex items-center gap-2 text-base">
+                                    <Hash className="h-5 w-5" /> Top Topics
+                                </CardTitle>
+                                <CardDescription>Most discussed subjects</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                {deepgramStats.topTopics.length > 0 ? (
+                                    <div className="flex flex-wrap gap-2">
+                                        {deepgramStats.topTopics.slice(0, 8).map((topic, i) => (
+                                            <Badge
+                                                key={topic.topic}
+                                                variant="secondary"
+                                                className={`text-xs ${i === 0 ? "bg-blue-100 text-blue-700" :
+                                                    i === 1 ? "bg-green-100 text-green-700" :
+                                                        i === 2 ? "bg-purple-100 text-purple-700" :
+                                                            "bg-gray-100 text-gray-700"
+                                                    }`}
+                                            >
+                                                {topic.topic} ({topic.count})
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-6 text-gray-400">No topics detected yet</div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
                 </div>
             )}
 

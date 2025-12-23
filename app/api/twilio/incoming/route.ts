@@ -30,13 +30,17 @@ export async function POST(request: Request) {
     if (!profile?.phone) {
         response.say("No forwarding number configured.");
     } else {
-        // 3. DIAL THE BUSINESS
+        // 3. DIAL THE BUSINESS WITH RECORDING
         // 'action' tells Twilio to hit the status route when the call ends
         // 'timeout' is how long to ring the business (20s) before giving up
+        // 'record' enables call recording for Deepgram analysis
         const dial = response.dial({
             action: `${process.env.NEXT_PUBLIC_APP_URL}/api/twilio/status?merchantId=${agent.merchant_id}`,
             timeout: 20,
-            callerId: calledTwilioNumber // Shows up as the Business Line on the owner's phone
+            callerId: calledTwilioNumber, // Shows up as the Business Line on the owner's phone
+            record: 'record-from-answer', // Records call once answered
+            recordingStatusCallback: `${process.env.NEXT_PUBLIC_APP_URL}/api/twilio/recording?merchantId=${agent.merchant_id}&agentPhone=${encodeURIComponent(calledTwilioNumber)}`, // Sends recording to Deepgram
+            recordingStatusCallbackEvent: ['completed'] as any, // Only notify when recording is complete
         });
         dial.number(profile.phone);
     }

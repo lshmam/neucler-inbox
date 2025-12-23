@@ -1,71 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import {
-    Radio, Zap, Users, Ghost, Droplets, DollarSign,
-    Gem, Send, Clock, TrendingUp, PhoneMissed, Star,
-    MessageSquare, CheckCircle2, ArrowRight, Sparkles
+    Radio, Zap, Users, Clock, TrendingUp, PhoneMissed, Star,
+    MessageSquare, CheckCircle2, ArrowRight, Sparkles, Loader2, Tag
 } from "lucide-react";
+import { toast } from "sonner";
 
-// ===== MOCK DATA =====
-const AUDIENCE_BUCKETS = [
-    {
-        id: "vips",
-        name: "VIPs",
-        icon: Gem,
-        count: 42,
-        color: "from-purple-500 to-indigo-600",
-        bgColor: "bg-purple-50",
-        textColor: "text-purple-700",
-        avgValue: 580,
-        description: "Top spenders & loyal customers"
-    },
-    {
-        id: "lost",
-        name: "Lost Customers",
-        icon: Ghost,
-        count: 115,
-        color: "from-slate-500 to-slate-700",
-        bgColor: "bg-slate-50",
-        textColor: "text-slate-700",
-        avgValue: 210,
-        description: "No visit in 9+ months"
-    },
-    {
-        id: "oil",
-        name: "Due for Oil",
-        icon: Droplets,
-        count: 68,
-        color: "from-amber-500 to-orange-600",
-        bgColor: "bg-amber-50",
-        textColor: "text-amber-700",
-        avgValue: 85,
-        description: "Based on last service date"
-    },
-    {
-        id: "declined",
-        name: "Declined Work",
-        icon: DollarSign,
-        count: 12,
-        color: "from-green-500 to-emerald-600",
-        bgColor: "bg-green-50",
-        textColor: "text-green-700",
-        avgValue: 420,
-        description: "Quoted but didn't book"
-    }
-];
+// ===== TYPES =====
+interface AudienceGroup {
+    id: string;
+    name: string;
+    count: number;
+    avgValue: number;
+    customerIds: string[];
+    color: string;
+    bgColor: string;
+    textColor: string;
+}
 
-const PAST_BROADCASTS = [
-    { id: 1, name: "Spring Oil Special", audience: "Due for Oil", sent: 68, opened: 52, revenue: 2890, date: "2024-03-15" },
-    { id: 2, name: "Win-Back Campaign", audience: "Lost Customers", sent: 115, opened: 41, revenue: 1680, date: "2024-02-28" },
-    { id: 3, name: "VIP Appreciation", audience: "VIPs", sent: 42, opened: 38, revenue: 4200, date: "2024-02-14" },
-];
+interface OutreachData {
+    audienceGroups: AudienceGroup[];
+    totalCustomers: number;
+    allTags: string[];
+    businessName: string;
+    pastBroadcasts: {
+        id: string;
+        name: string;
+        message: string;
+        audience: string;
+        recipientCount: number;
+        status: string;
+        sentAt: string;
+    }[];
+    workflows?: {
+        id: string;
+        type: string;
+        isActive: boolean;
+        config: any;
+        weeklyCount: number;
+    }[];
+    workflowStats?: Record<string, number>;
+    totalWeeklyValue?: number;
+}
 
+// ===== WORKFLOW RECIPES (Config - UI display info) =====
 const WORKFLOW_RECIPES = [
     {
         id: "missed-call",
@@ -73,7 +57,7 @@ const WORKFLOW_RECIPES = [
         description: "Text back immediately if call is missed.",
         icon: PhoneMissed,
         color: "text-red-500",
-        stats: { label: "Saved", value: 12, unit: "calls this week" },
+        statsLabel: "calls rescued",
         defaultOn: true
     },
     {
@@ -82,7 +66,7 @@ const WORKFLOW_RECIPES = [
         description: "Send Google Review link 24h after pickup.",
         icon: Star,
         color: "text-amber-500",
-        stats: { label: "Generated", value: 8, unit: "reviews this month" },
+        statsLabel: "reviews generated",
         defaultOn: true
     },
     {
@@ -91,7 +75,7 @@ const WORKFLOW_RECIPES = [
         description: "Follow up if quote is silent for 48h.",
         icon: MessageSquare,
         color: "text-blue-500",
-        stats: { label: "Converted", value: 5, unit: "quotes this week" },
+        statsLabel: "quotes converted",
         defaultOn: false
     }
 ];
@@ -104,6 +88,28 @@ export default function OutreachPage() {
         WORKFLOW_RECIPES.reduce((acc, r) => ({ ...acc, [r.id]: r.defaultOn }), {})
     );
 
+    // Data fetching state
+    const [data, setData] = useState<OutreachData | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    // Fetch real data
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const res = await fetch("/api/outreach");
+                if (!res.ok) throw new Error("Failed to fetch");
+                const json = await res.json();
+                setData(json);
+            } catch (error) {
+                console.error("Error fetching outreach data:", error);
+                setData({ audienceGroups: [], totalCustomers: 0, allTags: [], businessName: "Your Business", pastBroadcasts: [] });
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchData();
+    }, []);
+
     const toggleBucket = (id: string) => {
         setSelectedBuckets(prev =>
             prev.includes(id) ? prev.filter(b => b !== id) : [...prev, id]
@@ -114,13 +120,83 @@ export default function OutreachPage() {
         setWorkflowStates(prev => ({ ...prev, [id]: !prev[id] }));
     };
 
-    // Calculate potential revenue
-    const selectedAudiences = AUDIENCE_BUCKETS.filter(b => selectedBuckets.includes(b.id));
+    // Sending state
+    const [sending, setSending] = useState(false);
+
+    // Send broadcast handler
+    const sendBroadcast = async () => {
+        if (selectedBuckets.length === 0 || !message.trim()) return;
+
+        setSending(true);
+        try {
+            // Collect all customer IDs from selected groups
+            const customerIds = selectedAudiences.flatMap(a => a.customerIds);
+            const audienceNames = selectedAudiences.map(a => a.name).join(", ");
+
+            const res = await fetch("/api/sms/broadcast", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: `Broadcast to ${audienceNames}`,
+                    customerIds,
+                    message: message.trim(),
+                }),
+            });
+
+            const result = await res.json();
+
+            if (result.success) {
+                toast.success(`Sent to ${result.campaign?.recipient_count || customerIds.length} customers!`);
+
+                // Optimistically add the new broadcast to the list immediately
+                const newBroadcast = {
+                    id: result.campaign?.id || `temp-${Date.now()}`,
+                    name: `Broadcast to ${audienceNames}`,
+                    message: message.trim(),
+                    audience: audienceNames,
+                    recipientCount: result.campaign?.recipient_count || customerIds.length,
+                    status: "sent",
+                    sentAt: new Date().toISOString(),
+                };
+
+                setData(prev => prev ? {
+                    ...prev,
+                    pastBroadcasts: [newBroadcast, ...prev.pastBroadcasts]
+                } : prev);
+
+                setMessage("");
+                setSelectedBuckets([]);
+
+                // Also refetch in background to sync with server
+                fetch("/api/outreach").then(res => {
+                    if (res.ok) {
+                        res.json().then(updatedData => setData(updatedData));
+                    }
+                });
+            } else {
+                toast.error(result.error || "Failed to send broadcast");
+            }
+        } catch (error) {
+            console.error("Broadcast error:", error);
+            toast.error("Failed to send broadcast");
+        } finally {
+            setSending(false);
+        }
+    };
+
+    // Calculate potential revenue from selected audiences
+    const selectedAudiences = data?.audienceGroups.filter(b => selectedBuckets.includes(b.id)) || [];
     const totalReach = selectedAudiences.reduce((sum, b) => sum + b.count, 0);
     const potentialRevenue = selectedAudiences.reduce((sum, b) => sum + (b.count * b.avgValue * 0.15), 0);
 
     return (
         <div className="flex-1 space-y-6 p-8 pt-6 overflow-auto">
+            {/* Compact Header */}
+            <div className="flex items-baseline gap-3">
+                <h1 className="text-2xl font-bold text-slate-900">Outreach</h1>
+                <span className="text-sm text-slate-500">Broadcasts & automated workflows</span>
+            </div>
+
             {/* TABS */}
             <div className="flex gap-2 border-b pb-2">
                 <button
@@ -164,39 +240,56 @@ export default function OutreachPage() {
                             <div>
                                 <h4 className="font-semibold text-sm text-slate-700 mb-3 flex items-center gap-2">
                                     <span className="w-6 h-6 rounded-full bg-slate-900 text-white text-xs flex items-center justify-center">1</span>
-                                    Select Your Audience (Money Buckets)
+                                    Select Your Audience (Customer Groups)
                                 </h4>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    {AUDIENCE_BUCKETS.map((bucket) => {
-                                        const Icon = bucket.icon;
-                                        const isSelected = selectedBuckets.includes(bucket.id);
-                                        return (
-                                            <button
-                                                key={bucket.id}
-                                                onClick={() => toggleBucket(bucket.id)}
-                                                className={`relative p-4 rounded-xl border-2 transition-all text-left ${isSelected
-                                                    ? "border-slate-900 bg-slate-50 shadow-lg"
-                                                    : "border-slate-200 hover:border-slate-300 hover:shadow"
-                                                    }`}
-                                            >
-                                                {isSelected && (
-                                                    <div className="absolute -top-2 -right-2 w-6 h-6 bg-slate-900 rounded-full flex items-center justify-center">
-                                                        <CheckCircle2 className="h-4 w-4 text-white" />
+
+                                {loading ? (
+                                    <div className="flex items-center justify-center py-12">
+                                        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+                                    </div>
+                                ) : data?.audienceGroups.length === 0 ? (
+                                    <div className="text-center py-12 bg-slate-50 rounded-xl border-2 border-dashed">
+                                        <Tag className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                                        <h3 className="font-semibold text-slate-600 mb-2">No Customer Groups Yet</h3>
+                                        <p className="text-sm text-slate-500 max-w-md mx-auto">
+                                            Add tags to your customers in the Service Desk to create audience groups for targeted campaigns.
+                                        </p>
+                                        <Button variant="outline" className="mt-4" asChild>
+                                            <a href="/service-desk">Go to Service Desk</a>
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        {data?.audienceGroups.map((bucket) => {
+                                            const isSelected = selectedBuckets.includes(bucket.id);
+                                            return (
+                                                <button
+                                                    key={bucket.id}
+                                                    onClick={() => toggleBucket(bucket.id)}
+                                                    className={`relative p-4 rounded-xl border-2 transition-all text-left ${isSelected
+                                                        ? "border-slate-900 bg-slate-50 shadow-lg"
+                                                        : "border-slate-200 hover:border-slate-300 hover:shadow"
+                                                        }`}
+                                                >
+                                                    {isSelected && (
+                                                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-slate-900 rounded-full flex items-center justify-center">
+                                                            <CheckCircle2 className="h-4 w-4 text-white" />
+                                                        </div>
+                                                    )}
+                                                    <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${bucket.color} flex items-center justify-center mb-3`}>
+                                                        <Tag className="h-5 w-5 text-white" />
                                                     </div>
-                                                )}
-                                                <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${bucket.color} flex items-center justify-center mb-3`}>
-                                                    <Icon className="h-5 w-5 text-white" />
-                                                </div>
-                                                <p className="font-semibold text-sm">{bucket.name}</p>
-                                                <p className="text-xs text-muted-foreground">{bucket.description}</p>
-                                                <Badge variant="secondary" className="mt-2">
-                                                    <Users className="h-3 w-3 mr-1" />
-                                                    {bucket.count} people
-                                                </Badge>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
+                                                    <p className="font-semibold text-sm">{bucket.name}</p>
+                                                    <p className="text-xs text-muted-foreground">Avg ${bucket.avgValue} spend</p>
+                                                    <Badge variant="secondary" className="mt-2">
+                                                        <Users className="h-3 w-3 mr-1" />
+                                                        {bucket.count} people
+                                                    </Badge>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
 
                                 {/* POTENTIAL REVENUE CALCULATOR */}
                                 {selectedBuckets.length > 0 && (
@@ -241,16 +334,38 @@ export default function OutreachPage() {
                                     </div>
                                     <p className="text-xs text-muted-foreground">{message.length}/160 chars</p>
                                 </div>
+
+                                {/* MESSAGE PREVIEW */}
+                                {message.trim() && (
+                                    <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                                        <p className="text-xs text-slate-500 font-medium mb-2">📱 Preview (what customers will receive):</p>
+                                        <div className="bg-white border border-slate-300 rounded-lg p-3 text-sm text-slate-800 whitespace-pre-wrap">
+                                            Hi [Name], this is {data?.businessName || "Your Business"}. {message.trim()}
+                                            <span className="text-slate-500">{"\n"}Reply STOP to opt out.</span>
+                                        </div>
+                                        <p className="text-xs text-slate-400 mt-2">* [Name] will be replaced with customer name, or skipped if unknown</p>
+                                    </div>
+                                )}
                             </div>
 
                             {/* SEND BUTTON */}
                             <Button
                                 className="w-full h-12 bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-900 hover:to-black text-white"
-                                disabled={selectedBuckets.length === 0 || !message.trim()}
+                                disabled={selectedBuckets.length === 0 || !message.trim() || sending}
+                                onClick={sendBroadcast}
                             >
-                                <Send className="mr-2 h-4 w-4" />
-                                Send to {totalReach} Customers
-                                <ArrowRight className="ml-2 h-4 w-4" />
+                                {sending ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Sending...
+                                    </>
+                                ) : (
+                                    <>
+                                        <MessageSquare className="mr-2 h-4 w-4" />
+                                        Send to {totalReach} Customers
+                                        <ArrowRight className="ml-2 h-4 w-4" />
+                                    </>
+                                )}
                             </Button>
                         </CardContent>
                     </Card>
@@ -264,45 +379,39 @@ export default function OutreachPage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead>
-                                        <tr className="border-b text-left text-sm text-muted-foreground">
-                                            <th className="pb-3 font-medium">Campaign</th>
-                                            <th className="pb-3 font-medium">Audience</th>
-                                            <th className="pb-3 font-medium">Sent</th>
-                                            <th className="pb-3 font-medium">Open Rate</th>
-                                            <th className="pb-3 font-medium">Revenue</th>
-                                            <th className="pb-3 font-medium">Date</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {PAST_BROADCASTS.map((broadcast) => (
-                                            <tr key={broadcast.id} className="border-b last:border-0 hover:bg-slate-50">
-                                                <td className="py-4 font-medium">{broadcast.name}</td>
-                                                <td className="py-4">
-                                                    <Badge variant="secondary">{broadcast.audience}</Badge>
-                                                </td>
-                                                <td className="py-4">{broadcast.sent}</td>
-                                                <td className="py-4">
-                                                    <span className={`font-medium ${(broadcast.opened / broadcast.sent) > 0.6 ? "text-green-600" : "text-amber-600"
-                                                        }`}>
-                                                        {Math.round((broadcast.opened / broadcast.sent) * 100)}%
-                                                    </span>
-                                                </td>
-                                                <td className="py-4">
-                                                    <span className="font-bold text-green-600">
-                                                        ${broadcast.revenue.toLocaleString()}
-                                                    </span>
-                                                </td>
-                                                <td className="py-4 text-muted-foreground">
-                                                    {new Date(broadcast.date).toLocaleDateString()}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                            {data?.pastBroadcasts && data.pastBroadcasts.length > 0 ? (
+                                <div className="space-y-3">
+                                    {data.pastBroadcasts.map((broadcast) => (
+                                        <div key={broadcast.id} className="p-4 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="font-medium text-slate-900">{broadcast.name}</h4>
+                                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                                    {broadcast.status}
+                                                </Badge>
+                                            </div>
+                                            <p className="text-sm text-slate-600 line-clamp-2 mb-2">
+                                                {broadcast.message}
+                                            </p>
+                                            <div className="flex items-center gap-4 text-xs text-slate-500">
+                                                <span className="flex items-center gap-1">
+                                                    <Users className="h-3 w-3" />
+                                                    {broadcast.recipientCount} recipients
+                                                </span>
+                                                <span>•</span>
+                                                <span>{broadcast.audience}</span>
+                                                <span>•</span>
+                                                <span>{new Date(broadcast.sentAt).toLocaleDateString()}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-slate-500">
+                                    <Radio className="h-12 w-12 text-slate-300 mx-auto mb-4" />
+                                    <p className="font-medium">No broadcasts sent yet</p>
+                                    <p className="text-sm text-muted-foreground">Your campaign history will appear here</p>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </div>
@@ -357,7 +466,7 @@ export default function OutreachPage() {
                                             <div className="flex items-center gap-2 p-3 bg-green-100 rounded-lg">
                                                 <TrendingUp className="h-4 w-4 text-green-600" />
                                                 <span className="text-sm text-green-700">
-                                                    <strong>{recipe.stats.value}</strong> {recipe.stats.unit}
+                                                    <strong>{data?.workflowStats?.[recipe.id] || 0}</strong> {recipe.statsLabel} this week
                                                 </span>
                                             </div>
                                         )}
@@ -389,7 +498,7 @@ export default function OutreachPage() {
                             </div>
                             <div className="text-right">
                                 <p className="text-slate-300 text-sm">This Week's Automation Value</p>
-                                <p className="text-3xl font-bold text-green-400 mt-1">$1,840</p>
+                                <p className="text-3xl font-bold text-green-400 mt-1">${(data?.totalWeeklyValue || 0).toLocaleString()}</p>
                             </div>
                         </CardContent>
                     </Card>

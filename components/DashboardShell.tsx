@@ -45,7 +45,7 @@ export function DashboardShell({ branding, children, knowledgeBaseArticles = [] 
             {/* Main Content */}
             <main
                 className={cn(
-                    "md:pl-64 h-full overflow-auto bg-slate-50 transition-all duration-300 pt-14 md:pt-0",
+                    "md:pl-64 h-full overflow-y-auto bg-slate-50 transition-all duration-300 pt-14 md:pt-0",
                     showKnowledgeBase && "md:pr-80"
                 )}
                 id="main-content"
