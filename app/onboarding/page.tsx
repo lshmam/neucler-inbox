@@ -1,45 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import usePlacesAutocomplete from "use-places-autocomplete";
 import Script from "next/script";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Building, LinkIcon, Loader2, Phone, Search, Clock, Sparkles, BookOpen, ArrowRight, ArrowLeft, Check, CreditCard, Shield } from "lucide-react";
+import { Building, LinkIcon, Loader2, Phone, Search, Clock, Sparkles, BookOpen, ArrowRight, ArrowLeft, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-
-// Stripe Price IDs - Replace with your actual IDs from Stripe Dashboard
-const PLANS = {
-    starter: {
-        id: "starter",
-        name: "Starter",
-        price: 79,
-        priceId: "price_1SfzBFH9dzNCFC8lJSgth6jB", // Replace with real Stripe Price ID
-        features: [
-            "Unified Support Inbox",
-            "Operational Playbook",
-            "Post-Call Performance Scoring",
-            "Dispute Protection Vault",
-            "Essential Insights Dashboard"
-        ]
-    },
-    pro: {
-        id: "pro",
-        name: "Pro",
-        price: 149,
-        priceId: "price_1SfzCKH9dzNCFC8lT3YfS8O6", // Replace with real Stripe Price ID
-        features: [
-            "Everything in Starter",
-            "AI Smart-Filter Call Routing",
-            "Active Agent Copilot",
-            "Automated Missed Call Rescue",
-            "Smart Capacity Waitlist",
-            "AI Voice Receptionists"
-        ]
-    }
-};
+import { saveOnboardingData } from "@/app/actions/onboarding";
 
 interface FetchedProfile {
     business_name: string;
@@ -53,12 +23,10 @@ interface FetchedProfile {
 
 export default function OnboardingPage() {
     const router = useRouter();
-    const [step, setStep] = useState(1); // 1: Search, 2: Basic Info, 3: Knowledge Base, 4: Plan Selection
+    const [step, setStep] = useState(1); // 1: Search, 2: Basic Info, 3: Knowledge Base
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [fetchedData, setFetchedData] = useState<FetchedProfile | null>(null);
-    const [selectedPlan, setSelectedPlan] = useState<"starter" | "pro">("pro");
-    const [isStartingTrial, setIsStartingTrial] = useState(false);
 
     const {
         ready,
@@ -109,10 +77,11 @@ export default function OnboardingPage() {
         setIsSaving(true);
 
         try {
-            // Store data locally - will be saved after successful payment
-            localStorage.setItem("onboarding_data", JSON.stringify(fetchedData));
-            toast.success("Profile ready!");
-            setStep(4); // Move to plan selection
+            // Save the profile data directly to the database
+            await saveOnboardingData(fetchedData);
+            toast.success("Welcome to neucler! Your profile has been set up.");
+            // Redirect to dashboard
+            router.push("/");
         } catch (error: any) {
             console.error(error);
             toast.error("Failed to save profile.", {
@@ -123,61 +92,30 @@ export default function OnboardingPage() {
         }
     };
 
-    const handleStartTrial = async () => {
-        setIsStartingTrial(true);
-        const plan = PLANS[selectedPlan];
-
-        // Get stored onboarding data
-        const storedData = localStorage.getItem("onboarding_data");
-        const onboardingData = storedData ? JSON.parse(storedData) : fetchedData;
-
-        try {
-            const res = await fetch("/api/stripe/checkout", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    priceId: plan.priceId,
-                    planTier: selectedPlan,
-                    trialDays: 7,
-                    // Pass onboarding data to be saved after payment
-                    onboardingData: {
-                        business_name: onboardingData?.business_name,
-                        address: onboardingData?.address,
-                        phone: onboardingData?.phone,
-                        website: onboardingData?.website,
-                    }
-                }),
-            });
-
-            const data = await res.json();
-            if (data.url) {
-                window.location.href = data.url;
-            } else {
-                throw new Error(data.error || "Failed to create checkout");
-            }
-        } catch (error: any) {
-            toast.error("Failed to start trial", { description: error.message });
-            setIsStartingTrial(false);
-        }
-    };
-
     const resetFlow = () => {
         setFetchedData(null);
         setValue("");
         setStep(1);
     };
 
+    // Verify if Google Maps is already loaded
+    useEffect(() => {
+        if (typeof window !== "undefined" && (window as any).google?.maps?.places) {
+            init();
+        }
+    }, [init]);
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
             <Script
                 src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
-                strategy="lazyOnload"
+                strategy="afterInteractive"
                 onLoad={() => init()}
             />
 
             {/* Step Indicator */}
             <div className="fixed top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-md border">
-                {[1, 2, 3, 4].map((s) => (
+                {[1, 2, 3].map((s) => (
                     <div
                         key={s}
                         className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${s === step
@@ -226,6 +164,16 @@ export default function OnboardingPage() {
                                             <p className="text-xs text-muted-foreground">{suggestion.structured_formatting.secondary_text}</p>
                                         </button>
                                     ))}
+                                </div>
+                            )}
+
+                            {status !== "OK" && status !== "" && value.length > 2 && (
+                                <div className="p-4 text-sm text-center text-muted-foreground bg-slate-50 rounded-lg border">
+                                    {status === "ZERO_RESULTS" ? (
+                                        <p>No businesses found matching "{value}"</p>
+                                    ) : (
+                                        <p className="text-red-500">Google Maps Error: {status}</p>
+                                    )}
                                 </div>
                             )}
 
@@ -371,117 +319,13 @@ export default function OnboardingPage() {
                             </Button>
                             <Button onClick={handleSaveProfile} disabled={isSaving} className="bg-black hover:bg-gray-800 text-white">
                                 {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Next: Choose Plan <ArrowRight className="ml-2 h-4 w-4" />
+                                Complete Setup <Check className="ml-2 h-4 w-4" />
                             </Button>
                         </CardFooter>
                     </>
                 )}
 
-                {/* ===== STEP 4: PLAN SELECTION & TRIAL ===== */}
-                {step === 4 && (
-                    <>
-                        <CardHeader className="text-center">
-                            <CardTitle className="text-2xl">Choose Your Plan</CardTitle>
-                            <CardDescription>
-                                Start your 7-day free trial. No charge until your trial ends.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            {/* Plan Cards */}
-                            <div className="grid grid-cols-2 gap-4">
-                                {/* Starter Plan */}
-                                <div
-                                    onClick={() => setSelectedPlan("starter")}
-                                    className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedPlan === "starter"
-                                        ? "border-blue-600 bg-blue-50"
-                                        : "border-slate-200 hover:border-slate-300"
-                                        }`}
-                                >
-                                    {selectedPlan === "starter" && (
-                                        <div className="absolute top-2 right-2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
-                                            <Check className="h-4 w-4 text-white" />
-                                        </div>
-                                    )}
-                                    <h3 className="text-xl font-bold">{PLANS.starter.name}</h3>
-                                    <p className="text-2xl font-bold mt-1">
-                                        ${PLANS.starter.price}<span className="text-sm font-normal text-muted-foreground">/mo</span>
-                                    </p>
-                                    <ul className="mt-4 space-y-2">
-                                        {PLANS.starter.features.map((feature, i) => (
-                                            <li key={i} className="flex items-start gap-2 text-xs text-slate-600">
-                                                <Check className="h-3 w-3 text-green-500 mt-0.5 shrink-0" />
-                                                <span>{feature}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
 
-                                {/* Pro Plan */}
-                                <div
-                                    onClick={() => setSelectedPlan("pro")}
-                                    className={`relative p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedPlan === "pro"
-                                        ? "border-blue-600 bg-blue-50"
-                                        : "border-slate-200 hover:border-slate-300"
-                                        }`}
-                                >
-                                    {selectedPlan === "pro" && (
-                                        <div className="absolute top-2 right-2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
-                                            <Check className="h-4 w-4 text-white" />
-                                        </div>
-                                    )}
-                                    <div className="absolute -top-2 left-4 px-2 py-0.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-[10px] font-bold rounded-full">
-                                        RECOMMENDED
-                                    </div>
-                                    <h3 className="text-xl font-bold">{PLANS.pro.name}</h3>
-                                    <p className="text-2xl font-bold mt-1">
-                                        ${PLANS.pro.price}<span className="text-sm font-normal text-muted-foreground">/mo</span>
-                                    </p>
-                                    <ul className="mt-4 space-y-2">
-                                        {PLANS.pro.features.map((feature, i) => (
-                                            <li key={i} className="flex items-start gap-2 text-xs text-slate-600">
-                                                <Check className="h-3 w-3 text-green-500 mt-0.5 shrink-0" />
-                                                <span>{feature}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            </div>
-
-                            {/* Trial Notice */}
-                            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                                <Shield className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                                <div>
-                                    <p className="text-sm font-medium text-amber-900">7-Day Free Trial</p>
-                                    <p className="text-xs text-amber-700 mt-0.5">
-                                        Your card won't be charged until your trial ends. We'll send you a reminder email 1 day before.
-                                    </p>
-                                </div>
-                            </div>
-                        </CardContent>
-                        <CardFooter className="flex flex-col gap-3">
-                            <Button
-                                onClick={handleStartTrial}
-                                disabled={isStartingTrial}
-                                className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white text-lg"
-                            >
-                                {isStartingTrial ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                        Setting up checkout...
-                                    </>
-                                ) : (
-                                    <>
-                                        <CreditCard className="mr-2 h-5 w-5" />
-                                        Start Free Trial
-                                    </>
-                                )}
-                            </Button>
-                            <p className="text-xs text-center text-muted-foreground">
-                                By continuing, you agree to our Terms of Service and Privacy Policy
-                            </p>
-                        </CardFooter>
-                    </>
-                )}
             </Card>
         </div>
     );

@@ -13,7 +13,8 @@ import {
     Radio,
     Settings,
     LogOut,
-    ChevronDown
+    ChevronDown,
+    PhoneCall
 } from "lucide-react";
 
 const NAV_SECTIONS = [
@@ -30,6 +31,7 @@ const NAV_SECTIONS = [
         title: "MANAGEMENT",
         items: [
             { label: "Performance", href: "/performance", icon: LineChart },
+            { label: "Call Analytics", href: "/call-analytics", icon: PhoneCall },
             { label: "Shop Playbook", href: "/knowledge-base", icon: BookOpenCheck },
         ]
     },
