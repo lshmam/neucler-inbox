@@ -14,16 +14,26 @@ import {
     Settings,
     LogOut,
     ChevronDown,
-    PhoneCall
+    PhoneCall,
+    Users,
+    ListTodo,
+    Bell,
 } from "lucide-react";
 
 const NAV_SECTIONS = [
     {
-        title: "OPERATIONS",
+        title: "YOUR WORKFLOW",
         items: [
-            { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-            { label: "Service Desk", href: "/service-desk", icon: Headset },
+            { label: "Home", href: "/dashboard", icon: LayoutDashboard },
+            { label: "Actions", href: "/actions", icon: ListTodo, badge: 5 },
+            { label: "Conversations", href: "/service-desk", icon: Headset, badge: 3 },
+        ]
+    },
+    {
+        title: "GROWTH",
+        items: [
             { label: "Pipeline", href: "/pipeline", icon: TrendingUp },
+            { label: "Customers", href: "/customers", icon: Users },
             { label: "Outreach", href: "/outreach", icon: Radio },
         ]
     },
@@ -75,13 +85,19 @@ export function Sidebar({ branding = DEFAULT_BRANDING, onNavigate }: SidebarProp
         <div className="flex flex-col h-full w-64 bg-slate-50 border-r border-slate-200 text-slate-900 shrink-0">
 
             {/* --- HEADER --- */}
-            <div className="min-h-16 flex items-center px-6 py-4 border-b border-slate-200 shrink-0 bg-white">
+            <div className="min-h-16 flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0 bg-white">
                 <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-lg bg-blue-600 flex items-center justify-center shrink-0 text-white font-bold text-sm overflow-hidden shadow-sm">
                         {branding.logo ? <img src={branding.logo} className="w-full h-full object-cover" alt="Logo" /> : branding.name.substring(0, 2).toUpperCase()}
                     </div>
                     <h1 className="font-semibold text-slate-900 text-sm leading-tight line-clamp-2">{branding.name}</h1>
                 </div>
+                <button className="relative h-9 w-9 rounded-lg flex items-center justify-center hover:bg-slate-100 transition-colors" title="Notifications">
+                    <Bell className="h-5 w-5 text-slate-500" />
+                    <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                        10
+                    </span>
+                </button>
             </div>
 
             {/* --- SCROLLABLE NAV --- */}
@@ -131,7 +147,12 @@ export function Sidebar({ branding = DEFAULT_BRANDING, onNavigate }: SidebarProp
                                             "h-5 w-5 shrink-0 mr-3",
                                             isActive ? "text-blue-600" : "text-slate-400 group-hover:text-slate-600"
                                         )} />
-                                        <span className="truncate">{item.label}</span>
+                                        <span className="truncate flex-1">{item.label}</span>
+                                        {(item as any).badge && (
+                                            <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                                                {(item as any).badge}
+                                            </span>
+                                        )}
                                     </Link>
                                 );
                             })}

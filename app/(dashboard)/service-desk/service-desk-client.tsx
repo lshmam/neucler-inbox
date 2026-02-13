@@ -6,7 +6,7 @@ import { formatDistanceToNow, format } from "date-fns";
 import {
     Search, Phone, MessageSquare, CheckCircle2, Send, Clock, Loader2, Car,
     Image, Zap, Lock, Ticket, Plus, X, ChevronRight, User, PanelRightClose, PanelRight,
-    AlertCircle, DollarSign, Edit2, MoreHorizontal, History, Wrench, Tag, FileText, Bot
+    AlertCircle, DollarSign, Edit2, MoreHorizontal, History, Wrench, Tag, FileText, Bot, BarChart3
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useRouter } from "next/navigation";
 
 // ============= TYPES =============
 interface Vehicle {
@@ -166,13 +167,13 @@ function UnifiedQueue({ conversations, selectedId, onSelect, filter, onFilterCha
                             key={c.id}
                             onClick={() => onSelect(c)}
                             className={`relative p-3 rounded-lg cursor-pointer transition-all mb-1 overflow-hidden ${selectedId === c.id
-                                ? "bg-blue-50 border border-blue-200"
+                                ? "bg-slate-100 border border-slate-300 shadow-sm"
                                 : "hover:bg-slate-50 border border-transparent"
                                 }`}
                         >
                             {/* High Priority Indicator */}
                             {c.ticket?.priority === "high" && (
-                                <div className="absolute left-0 top-2 bottom-2 w-1 bg-red-500 rounded-full" />
+                                <div className="absolute left-0 top-2 bottom-2 w-1 bg-slate-900 rounded-full" />
                             )}
                             {/* Row 1: Name + Time */}
                             <div className={`flex items-center justify-between mb-1 ${c.ticket?.priority === "high" ? "pl-2" : ""}`}>
@@ -192,12 +193,12 @@ function UnifiedQueue({ conversations, selectedId, onSelect, filter, onFilterCha
                             {/* Row 3: Badges */}
                             <div className={`flex gap-1.5 ${c.ticket?.priority === "high" ? "pl-2" : ""}`}>
                                 {c.ticket && (
-                                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-blue-50 text-blue-700 border-blue-200">
+                                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-slate-100 text-slate-700 border-slate-200">
                                         🎫 #{c.ticket.number}: {c.ticket.status === "open" ? "Open" : c.ticket.status === "waiting" ? "Waiting" : "Resolved"}
                                     </Badge>
                                 )}
                                 {c.deal && (
-                                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-green-50 text-green-700 border-green-200">
+                                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 bg-slate-100 text-slate-700 border-slate-200">
                                         💰 {c.deal.stage === "quote_sent" ? "Quote Sent" : c.deal.stage === "new_inquiry" ? "New Inquiry" : c.deal.stage}
                                     </Badge>
                                 )}
@@ -225,6 +226,7 @@ function ActionStream({ conversation, onSendMessage, onCreateTicket, onTogglePan
     const [isSending, setIsSending] = useState(false);
     const [transcriptModalOpen, setTranscriptModalOpen] = useState(false);
     const [activeTranscript, setActiveTranscript] = useState<TranscriptEntry[]>([]);
+    const router = useRouter();
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -268,7 +270,7 @@ function ActionStream({ conversation, onSendMessage, onCreateTicket, onTogglePan
                         <ChevronRight className="h-5 w-5 rotate-180" />
                     </Button>
                     <Avatar className="h-10 w-10 shrink-0">
-                        <AvatarFallback className="bg-slate-200 text-slate-700 font-medium">
+                        <AvatarFallback className="bg-slate-900 text-white font-medium">
                             {conversation.customerName.substring(0, 2).toUpperCase()}
                         </AvatarFallback>
                     </Avatar>
@@ -287,8 +289,8 @@ function ActionStream({ conversation, onSendMessage, onCreateTicket, onTogglePan
                         Details
                     </Button>
                     {conversation.ticket ? (
-                        <Badge className={`h-7 px-2.5 ${conversation.ticket.status === "open" ? "bg-blue-500" :
-                            conversation.ticket.status === "waiting" ? "bg-yellow-500" : "bg-green-500"
+                        <Badge className={`h-7 px-2.5 ${conversation.ticket.status === "open" ? "bg-slate-800" :
+                            conversation.ticket.status === "waiting" ? "bg-slate-500" : "bg-slate-900"
                             } text-white border-0`}>
                             ● {conversation.ticket.status === "open" ? "Open" : conversation.ticket.status === "waiting" ? "Waiting" : "Resolved"}
                         </Badge>
@@ -330,27 +332,39 @@ function ActionStream({ conversation, onSendMessage, onCreateTicket, onTogglePan
                                             {hasSummary && (
                                                 <div className="mb-3">
                                                     <div className="flex items-center gap-1.5 mb-2">
-                                                        <Bot className="h-4 w-4 text-blue-600" />
+                                                        <Bot className="h-4 w-4 text-slate-900" />
                                                         <span className="text-xs font-medium text-slate-600">AI Call Summary</span>
                                                     </div>
                                                     <p className="text-sm text-slate-700 leading-relaxed">{msg.callSummary}</p>
                                                 </div>
                                             )}
 
-                                            {hasTranscript && (
+                                            {/* Action Buttons */}
+                                            <div className="flex gap-2 mt-2">
+                                                {hasTranscript && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="flex-1"
+                                                        onClick={() => {
+                                                            setActiveTranscript(msg.callTranscript || []);
+                                                            setTranscriptModalOpen(true);
+                                                        }}
+                                                    >
+                                                        <FileText className="h-4 w-4 mr-2" />
+                                                        Transcript
+                                                    </Button>
+                                                )}
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
-                                                    className="w-full mt-2"
-                                                    onClick={() => {
-                                                        setActiveTranscript(msg.callTranscript || []);
-                                                        setTranscriptModalOpen(true);
-                                                    }}
+                                                    className="flex-1 text-slate-900 border-slate-200 hover:bg-slate-50"
+                                                    onClick={() => router.push('/call-analytics')}
                                                 >
-                                                    <FileText className="h-4 w-4 mr-2" />
-                                                    View Full Transcript
+                                                    <BarChart3 className="h-4 w-4 mr-2" />
+                                                    View Full Report
                                                 </Button>
-                                            )}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -362,12 +376,12 @@ function ActionStream({ conversation, onSendMessage, onCreateTicket, onTogglePan
                             return (
                                 <div key={msg.id} className="flex justify-end">
                                     <div className="max-w-[75%]">
-                                        <div className="bg-amber-50 border border-amber-200 rounded-2xl rounded-tr-sm px-4 py-2.5">
+                                        <div className="bg-slate-50 border border-slate-300 border-dashed rounded-2xl rounded-tr-sm px-4 py-2.5">
                                             <div className="flex items-center gap-1.5 mb-1">
-                                                <Lock className="h-3 w-3 text-amber-600" />
-                                                <span className="text-[10px] font-medium text-amber-700">Internal Note</span>
+                                                <Lock className="h-3 w-3 text-slate-500" />
+                                                <span className="text-[10px] font-medium text-slate-600">Internal Note</span>
                                             </div>
-                                            <p className="text-sm text-amber-900">{msg.content}</p>
+                                            <p className="text-sm text-slate-700">{msg.content}</p>
                                         </div>
                                         <p className="text-[10px] text-slate-400 mt-1 text-right" suppressHydrationWarning>
                                             {msg.sender} • {formatDistanceToNow(new Date(msg.timestamp), { addSuffix: true })}
@@ -397,7 +411,7 @@ function ActionStream({ conversation, onSendMessage, onCreateTicket, onTogglePan
                         return (
                             <div key={msg.id} className="flex justify-end">
                                 <div className="max-w-[75%]">
-                                    <div className="bg-blue-600 rounded-2xl rounded-tr-sm px-4 py-2.5">
+                                    <div className="bg-slate-900 rounded-2xl rounded-tr-sm px-4 py-2.5">
                                         <p className="text-sm text-white whitespace-pre-wrap">{msg.content}</p>
                                     </div>
                                     <p className="text-[10px] text-slate-400 mt-1 text-right" suppressHydrationWarning>
@@ -420,13 +434,13 @@ function ActionStream({ conversation, onSendMessage, onCreateTicket, onTogglePan
                             </Button>
                         </div>
                         <div className="flex items-center gap-2">
-                            <span className={`text-xs font-medium ${isNoteMode ? "text-amber-600" : "text-blue-600"}`}>
+                            <span className={`text-xs font-medium ${isNoteMode ? "text-slate-500" : "text-slate-600"}`}>
                                 {isNoteMode ? "📝 Note Mode" : "💬 Reply"}
                             </span>
                             <Switch
                                 checked={isNoteMode}
                                 onCheckedChange={setIsNoteMode}
-                                className="data-[state=checked]:bg-amber-500"
+                                className="data-[state=checked]:bg-slate-900"
                             />
                         </div>
                     </div>
@@ -436,12 +450,12 @@ function ActionStream({ conversation, onSendMessage, onCreateTicket, onTogglePan
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
                             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                            className={`flex-1 min-h-[60px] max-h-[120px] resize-none ${isNoteMode ? "bg-amber-50 border-amber-300" : "bg-white"}`}
+                            className={`flex-1 min-h-[60px] max-h-[120px] resize-none ${isNoteMode ? "bg-slate-50 border-slate-300 border-dashed" : "bg-white"}`}
                         />
                         <Button
                             onClick={handleSend}
                             disabled={!message.trim() || isSending}
-                            className={`h-auto px-5 ${isNoteMode ? "bg-amber-500 hover:bg-amber-600" : "bg-blue-600 hover:bg-blue-700"}`}
+                            className={`h-auto px-5 ${isNoteMode ? "bg-slate-900 dark:bg-slate-800" : "bg-slate-900 hover:bg-slate-800"}`}
                         >
                             {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                         </Button>
@@ -512,6 +526,7 @@ function ActionStream({ conversation, onSendMessage, onCreateTicket, onTogglePan
                     </ScrollArea>
                 </DialogContent>
             </Dialog>
+
         </div>
     );
 }
@@ -545,10 +560,10 @@ function ContextPanel({ conversation, isOpen, onClose, onUpdateTicket, onCreateT
     if (!isOpen || !conversation) return null;
 
     const pipelineStages = [
-        { value: "new_inquiry", label: "New Inquiry", color: "bg-blue-500" },
-        { value: "quote_sent", label: "Quote Sent", color: "bg-yellow-500" },
-        { value: "follow_up", label: "Follow-Up", color: "bg-purple-500" },
-        { value: "booked", label: "Booked", color: "bg-green-500" },
+        { value: "new_inquiry", label: "New Inquiry", color: "bg-slate-200" },
+        { value: "quote_sent", label: "Quote Sent", color: "bg-slate-300" },
+        { value: "follow_up", label: "Follow-Up", color: "bg-slate-400" },
+        { value: "booked", label: "Booked", color: "bg-slate-900" },
     ];
 
     const handleSendToPipeline = async () => {
@@ -607,7 +622,7 @@ function ContextPanel({ conversation, isOpen, onClose, onUpdateTicket, onCreateT
                     <div className="bg-white rounded-xl border border-slate-200 p-4">
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
-                                <Car className="h-4 w-4 text-blue-600" />
+                                <Car className="h-4 w-4 text-slate-900" />
                                 <span className="font-semibold text-sm text-slate-900">Customer Info</span>
                             </div>
                             {!isEditingVehicle && (
@@ -706,7 +721,7 @@ function ContextPanel({ conversation, isOpen, onClose, onUpdateTicket, onCreateT
                                     </Button>
                                     <Button
                                         size="sm"
-                                        className="flex-1 h-8 bg-blue-600 hover:bg-blue-700"
+                                        className="flex-1 h-8 bg-slate-900 hover:bg-slate-800"
                                         disabled={isSavingVehicle}
                                         onClick={async () => {
                                             if (onUpdateCustomerInfo) {
@@ -753,9 +768,9 @@ function ContextPanel({ conversation, isOpen, onClose, onUpdateTicket, onCreateT
 
                                 {/* Service Requested */}
                                 {conversation.serviceRequested ? (
-                                    <div className="bg-blue-50 rounded-lg p-3">
-                                        <p className="text-[10px] uppercase tracking-wider text-blue-600 mb-1">Service Requested</p>
-                                        <p className="text-sm text-blue-900 whitespace-normal break-words">{conversation.serviceRequested}</p>
+                                    <div className="bg-slate-50 rounded-lg p-3">
+                                        <p className="text-[10px] uppercase tracking-wider text-slate-600 mb-1">Service Requested</p>
+                                        <p className="text-sm text-slate-900 whitespace-normal break-words">{conversation.serviceRequested}</p>
                                     </div>
                                 ) : (
                                     <div className="bg-slate-50 rounded-lg p-3">
@@ -765,9 +780,9 @@ function ContextPanel({ conversation, isOpen, onClose, onUpdateTicket, onCreateT
 
                                 {/* LTV and Last Visit */}
                                 <div className="grid grid-cols-2 gap-3">
-                                    <div className="bg-green-50 rounded-lg p-2.5">
-                                        <p className="text-[10px] text-green-600 font-medium">Lifetime Spend</p>
-                                        <p className="text-lg font-bold text-green-700">${conversation.ltv?.toLocaleString() || 0}</p>
+                                    <div className="bg-slate-50 rounded-lg p-2.5">
+                                        <p className="text-[10px] text-slate-600 font-medium">Lifetime Spend</p>
+                                        <p className="text-lg font-bold text-slate-900">${conversation.ltv?.toLocaleString() || 0}</p>
                                     </div>
                                     <div className="bg-slate-100 rounded-lg p-2.5">
                                         <p className="text-[10px] text-slate-600 font-medium">Last Visit</p>
@@ -844,7 +859,7 @@ function ContextPanel({ conversation, isOpen, onClose, onUpdateTicket, onCreateT
                                         <SelectTrigger className="h-8 text-xs border-slate-200 bg-slate-50">
                                             <div className="flex items-center gap-2">
                                                 <Avatar className="h-5 w-5">
-                                                    <AvatarFallback className="text-[9px] bg-blue-100 text-blue-700">
+                                                    <AvatarFallback className="text-[9px] bg-slate-900 text-white">
                                                         {(teamMembers.find(m => m.user_id === conversation.ticket?.assignee || m.name === conversation.ticket?.assignee)?.name || conversation.ticket.assignee || "?").substring(0, 2).toUpperCase()}
                                                     </AvatarFallback>
                                                 </Avatar>
@@ -859,7 +874,7 @@ function ContextPanel({ conversation, isOpen, onClose, onUpdateTicket, onCreateT
                                                 <SelectItem key={member.id} value={member.user_id}>
                                                     <div className="flex items-center gap-2">
                                                         <Avatar className="h-5 w-5">
-                                                            <AvatarFallback className="text-[9px] bg-blue-100 text-blue-700">
+                                                            <AvatarFallback className="text-[9px] bg-slate-900 text-white">
                                                                 {member.name.substring(0, 2).toUpperCase()}
                                                             </AvatarFallback>
                                                         </Avatar>
@@ -881,7 +896,7 @@ function ContextPanel({ conversation, isOpen, onClose, onUpdateTicket, onCreateT
                                 <p className="text-xs text-slate-500 mb-4 max-w-[180px] mx-auto">
                                     Create a ticket to track resolution for this conversation.
                                 </p>
-                                <Button size="sm" onClick={onCreateTicket} className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
+                                <Button size="sm" onClick={onCreateTicket} className="w-full bg-slate-900 hover:bg-slate-800 text-white shadow-sm">
                                     <Plus className="h-3.5 w-3.5 mr-1.5" />
                                     Create Ticket
                                 </Button>
@@ -976,7 +991,7 @@ function ContextPanel({ conversation, isOpen, onClose, onUpdateTicket, onCreateT
                     {/* Section C: Customer Tags */}
                     <div className="bg-white rounded-xl border border-slate-200 p-4">
                         <div className="flex items-center gap-2 mb-3">
-                            <Tag className="h-4 w-4 text-purple-600" />
+                            <Tag className="h-4 w-4 text-slate-600" />
                             <span className="font-semibold text-sm text-slate-900">Customer Tags</span>
                         </div>
 
@@ -989,7 +1004,7 @@ function ContextPanel({ conversation, isOpen, onClose, onUpdateTicket, onCreateT
                                     <Badge
                                         key={tag}
                                         variant="secondary"
-                                        className="text-xs h-6 px-2 bg-purple-50 text-purple-700 border border-purple-200 group cursor-pointer hover:bg-purple-100"
+                                        className="text-xs h-6 px-2 bg-slate-100 text-slate-700 border border-slate-200 group cursor-pointer hover:bg-slate-200"
                                     >
                                         {tag.charAt(0).toUpperCase() + tag.slice(1)}
                                         <button
@@ -1031,7 +1046,7 @@ function ContextPanel({ conversation, isOpen, onClose, onUpdateTicket, onCreateT
                                         <button
                                             key={tag}
                                             onClick={() => onUpdateTags(conversation.customerId, [...(conversation.tags || []), tag.toLowerCase()])}
-                                            className="text-[10px] px-2 py-1 rounded bg-slate-100 text-slate-600 hover:bg-purple-100 hover:text-purple-700 transition-colors"
+                                            className="text-[10px] px-2 py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900 transition-colors"
                                         >
                                             + {tag}
                                         </button>

@@ -6,7 +6,8 @@ import { formatDistanceToNow } from "date-fns";
 import {
     Phone, MessageSquare, Globe, TrendingUp, DollarSign,
     Users, AlertCircle, Clock, Car, Kanban, Database,
-    Search, Upload, X, Plus, ChevronRight, Truck, Crown, UserX, Hash, Loader2
+    Search, Upload, X, Plus, ChevronRight, Truck, Crown, UserX, Hash, Loader2,
+    List, RefreshCw, CheckCircle2, XCircle, CalendarClock, ArrowRight, RotateCcw
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,23 +25,25 @@ interface Deal {
     value: number;
     source: "phone" | "sms" | "google" | "service_desk";
     created_at: string;
-    status: "new_inquiry" | "quote_sent" | "follow_up" | "booked";
+    status: "new_inquiry" | "quote_sent" | "follow_up" | "booked" | "not_booked" | "completed";
 }
 
 interface Customer {
     id: string;
     name: string;
-    phone: string;
     email: string;
-    vehicles: { year: string; make: string; model: string; }[];
-    totalSpend: number;
+    phone: string;
+    vehicles: { year: string; make: string; model: string }[];
     lastVisit: string;
-    tags: string[];
     isVip: boolean;
     isFleet: boolean;
+    tags?: string[];
+    totalSpend: number;
 }
 
-type ColumnId = "new_inquiry" | "quote_sent" | "follow_up" | "booked";
+
+
+type ColumnId = "new_inquiry" | "quote_sent" | "follow_up" | "booked" | "not_booked" | "completed";
 
 interface Column {
     id: ColumnId;
@@ -56,6 +59,8 @@ const COLUMNS: Column[] = [
     { id: "quote_sent", title: "Quote Sent", color: "text-blue-700", bgColor: "bg-blue-50", borderColor: "border-blue-200" },
     { id: "follow_up", title: "Follow-Up Needed", color: "text-amber-700", bgColor: "bg-amber-50", borderColor: "border-amber-200" },
     { id: "booked", title: "Booked", color: "text-green-700", bgColor: "bg-green-50", borderColor: "border-green-200" },
+    { id: "not_booked", title: "Not Booked", color: "text-red-700", bgColor: "bg-red-50", borderColor: "border-red-200" },
+    { id: "completed", title: "Completed", color: "text-emerald-700", bgColor: "bg-emerald-50", borderColor: "border-emerald-200" },
 ];
 
 // ============= HELPER FUNCTIONS =============
@@ -63,23 +68,31 @@ function triggerAutoFollowUp(dealId: string, customerName: string) {
     toast.info(`📧 Auto-follow-up scheduled for ${customerName}`, { description: "SMS will be sent in 2 hours if no response" });
 }
 
+function triggerLostDeal(customerName: string) {
+    toast.error(`😞 ${customerName} not booked`, { description: "Consider a win-back outreach in 30 days" });
+}
+
 // ============= CONVERSION SCOREBOARD =============
 function ConversionScoreboard({ deals }: { deals: Deal[] }) {
     const newLeads = deals.filter(d => d.status === "new_inquiry").length;
     const booked = deals.filter(d => d.status === "booked").length;
-    const closeRate = deals.length > 0 ? Math.round((booked / deals.length) * 100) : 0;
-    const pipelineValue = deals.reduce((sum, d) => sum + d.value, 0);
-    const stalledQuotes = deals.filter(d => d.status === "follow_up").length;
+    const completed = deals.filter(d => d.status === "completed").length;
+    const notBooked = deals.filter(d => d.status === "not_booked").length;
+    const activeDeals = deals.filter(d => !["not_booked", "completed"].includes(d.status));
+    const closeRate = activeDeals.length + completed + notBooked > 0 ? Math.round(((booked + completed) / (activeDeals.length + completed + notBooked)) * 100) : 0;
+    const pipelineValue = activeDeals.reduce((sum, d) => sum + d.value, 0);
+    const wonRevenue = deals.filter(d => d.status === "completed").reduce((sum, d) => sum + d.value, 0);
 
     const cards = [
         { label: "New Leads", value: newLeads, icon: Users, color: "text-slate-700" },
         { label: "Close Rate", value: `${closeRate}%`, icon: TrendingUp, color: "text-green-600" },
         { label: "Pipeline Value", value: `$${pipelineValue.toLocaleString()}`, icon: DollarSign, color: "text-blue-600" },
-        { label: "Stalled Quotes", value: stalledQuotes, icon: AlertCircle, color: stalledQuotes > 0 ? "text-amber-600" : "text-slate-500" },
+        { label: "Not Booked", value: notBooked, icon: XCircle, color: notBooked > 0 ? "text-red-600" : "text-slate-500" },
+        { label: "Won Revenue", value: `$${wonRevenue.toLocaleString()}`, icon: CheckCircle2, color: "text-emerald-600" },
     ];
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
             {cards.map((card) => (
                 <Card key={card.label} className="bg-white border-slate-200 shadow-sm">
                     <CardHeader className="pb-2">
@@ -88,7 +101,7 @@ function ConversionScoreboard({ deals }: { deals: Deal[] }) {
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <span className={`text-3xl font-mono font-bold ${card.color}`}>{card.value}</span>
+                        <span className={`text-2xl font-mono font-bold ${card.color}`}>{card.value}</span>
                     </CardContent>
                 </Card>
             ))}
@@ -177,11 +190,13 @@ function DealBoard({ deals, setDeals, onSelectDeal }: { deals: Deal[]; setDeals:
 
         if (newStatus === "follow_up" && oldStatus !== "follow_up") triggerAutoFollowUp(deal.id, deal.customer_name);
         if (newStatus === "booked") toast.success(`🎉 ${deal.customer_name} booked!`, { description: `${deal.vehicle.year} ${deal.vehicle.make} ${deal.vehicle.model} - $${deal.value}` });
+        if (newStatus === "not_booked" && oldStatus !== "not_booked") triggerLostDeal(deal.customer_name);
+        if (newStatus === "completed") toast.success(`✅ ${deal.customer_name} completed!`, { description: `$${deal.value} revenue earned` });
     };
 
     return (
         <DragDropContext onDragEnd={handleDragEnd}>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1 min-h-0">
+            <div className="grid gap-3 flex-1 min-h-0" style={{ gridTemplateColumns: `repeat(${COLUMNS.length}, minmax(300px, 1fr))` }}>
                 {COLUMNS.map((column) => {
                     const columnDeals = deals.filter(d => d.status === column.id);
                     return (
@@ -228,6 +243,8 @@ function DealDetailPanel({
         { value: "quote_sent", label: "Quote Sent", color: "bg-blue-500" },
         { value: "follow_up", label: "Follow-Up", color: "bg-amber-500" },
         { value: "booked", label: "Booked", color: "bg-green-500" },
+        { value: "not_booked", label: "Not Booked", color: "bg-red-500" },
+        { value: "completed", label: "Completed", color: "bg-emerald-500" },
     ];
 
     return (
@@ -602,7 +619,7 @@ function CustomerDatabase({ onAddDeal }: { onAddDeal: (customer: Customer) => vo
                                                         </span>
                                                     )}
                                                 </div>
-                                                {customer.tags.length > 0 && (
+                                                {customer.tags && customer.tags.length > 0 && (
                                                     <div className="flex gap-1 mt-1.5">
                                                         {customer.tags.map(t => (
                                                             <span key={t} className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
@@ -808,10 +825,261 @@ function CustomerDatabase({ onAddDeal }: { onAddDeal: (customer: Customer) => vo
     );
 }
 
+// ============= ALL DEALS TABLE =============
+function AllDealsTable({ deals, onSelectDeal }: { deals: Deal[]; onSelectDeal: (deal: Deal) => void }) {
+    const [search, setSearch] = useState("");
+    const [stageFilter, setStageFilter] = useState<ColumnId | "all">("all");
+
+    const filtered = deals.filter(d => {
+        if (stageFilter !== "all" && d.status !== stageFilter) return false;
+        if (search) {
+            const q = search.toLowerCase();
+            return d.customer_name.toLowerCase().includes(q) ||
+                d.issue.toLowerCase().includes(q) ||
+                `${d.vehicle.year} ${d.vehicle.make} ${d.vehicle.model}`.toLowerCase().includes(q);
+        }
+        return true;
+    });
+
+    const getStageBadge = (status: string) => {
+        const col = COLUMNS.find(c => c.id === status);
+        if (!col) return null;
+        return <Badge className={`${col.bgColor} ${col.color} border ${col.borderColor} text-xs`}>{col.title}</Badge>;
+    };
+
+    return (
+        <div className="space-y-4">
+            <div className="flex items-center gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-[200px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                        placeholder="Search deals by customer, vehicle, or service..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="pl-10 h-10 bg-white"
+                    />
+                </div>
+                <div className="flex gap-1 flex-wrap">
+                    <button
+                        onClick={() => setStageFilter("all")}
+                        className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${stageFilter === "all" ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"}`}
+                    >All ({deals.length})</button>
+                    {COLUMNS.map(col => {
+                        const count = deals.filter(d => d.status === col.id).length;
+                        return (
+                            <button
+                                key={col.id}
+                                onClick={() => setStageFilter(col.id)}
+                                className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${stageFilter === col.id ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"}`}
+                            >{col.title} ({count})</button>
+                        );
+                    })}
+                </div>
+            </div>
+            <Card className="shadow-sm border-slate-200 overflow-hidden">
+                <div className="overflow-auto max-h-[calc(100vh-320px)]">
+                    <table className="w-full">
+                        <thead className="bg-slate-50 sticky top-0 border-b border-slate-200">
+                            <tr className="text-left text-xs text-slate-500 uppercase tracking-wider">
+                                <th className="px-4 py-3 font-semibold">Customer</th>
+                                <th className="px-4 py-3 font-semibold">Vehicle</th>
+                                <th className="px-4 py-3 font-semibold">Service</th>
+                                <th className="px-4 py-3 font-semibold">Value</th>
+                                <th className="px-4 py-3 font-semibold">Stage</th>
+                                <th className="px-4 py-3 font-semibold">Source</th>
+                                <th className="px-4 py-3 font-semibold">Created</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-slate-100">
+                            {filtered.length === 0 && (
+                                <tr><td colSpan={7} className="px-4 py-12 text-center text-slate-400">No deals match your filters</td></tr>
+                            )}
+                            {filtered.map(deal => (
+                                <tr key={deal.id} onClick={() => onSelectDeal(deal)} className="hover:bg-slate-50 cursor-pointer transition-colors">
+                                    <td className="px-4 py-3">
+                                        <div className="font-medium text-slate-900">{deal.customer_name}</div>
+                                        {deal.customer_phone && <div className="text-xs text-slate-500 font-mono">{deal.customer_phone}</div>}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-slate-700">
+                                        {deal.vehicle.year !== "" ? `${deal.vehicle.year} ${deal.vehicle.make} ${deal.vehicle.model}` : "\u2014"}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm text-slate-600 max-w-[200px] truncate">{deal.issue}</td>
+                                    <td className="px-4 py-3">
+                                        <span className="font-mono font-bold text-green-600">${deal.value.toLocaleString()}</span>
+                                    </td>
+                                    <td className="px-4 py-3">{getStageBadge(deal.status)}</td>
+                                    <td className="px-4 py-3 text-sm text-slate-500 capitalize">{deal.source.replace("_", " ")}</td>
+                                    <td className="px-4 py-3 text-sm text-slate-500">{formatDistanceToNow(new Date(deal.created_at), { addSuffix: true })}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+        </div>
+    );
+}
+
+// ============= REACTIVATION TAB =============
+interface LapsedCustomer {
+    id: string;
+    name: string;
+    phone: string;
+    lastVisit: string;
+    daysSinceVisit: number;
+    totalSpend: number;
+    lastService: string;
+    vehicle: string;
+    visits: number;
+}
+
+function ReactivationTab({ onWinBack }: { onWinBack: (customer: LapsedCustomer) => void }) {
+    const [urgencyFilter, setUrgencyFilter] = useState<"all" | "90-180" | "180-365" | "365+">("all");
+    const [search, setSearch] = useState("");
+
+    const lapsedCustomers: LapsedCustomer[] = [
+        { id: "lc1", name: "Robert Chen", phone: "+1 604-555-0101", lastVisit: "2025-08-15", daysSinceVisit: 179, totalSpend: 3200, lastService: "Full brake replacement", vehicle: "2020 Honda Civic", visits: 8 },
+        { id: "lc2", name: "Sarah Mitchell", phone: "+1 604-555-0202", lastVisit: "2025-06-01", daysSinceVisit: 254, totalSpend: 5800, lastService: "Transmission service", vehicle: "2019 BMW X3", visits: 12 },
+        { id: "lc3", name: "James Thompson", phone: "+1 604-555-0303", lastVisit: "2025-03-10", daysSinceVisit: 337, totalSpend: 1500, lastService: "Oil change", vehicle: "2021 Toyota Corolla", visits: 4 },
+        { id: "lc4", name: "Maria Garcia", phone: "+1 604-555-0404", lastVisit: "2024-11-20", daysSinceVisit: 447, totalSpend: 8200, lastService: "Engine diagnostics", vehicle: "2018 Mercedes C300", visits: 15 },
+        { id: "lc5", name: "David Kim", phone: "+1 604-555-0505", lastVisit: "2025-09-22", daysSinceVisit: 141, totalSpend: 2100, lastService: "Tire rotation + alignment", vehicle: "2022 Subaru Outback", visits: 5 },
+        { id: "lc6", name: "Emily Watson", phone: "+1 604-555-0606", lastVisit: "2025-01-15", daysSinceVisit: 391, totalSpend: 4500, lastService: "Suspension repair", vehicle: "2017 Ford F-150", visits: 9 },
+        { id: "lc7", name: "Michael Brown", phone: "+1 604-555-0707", lastVisit: "2025-07-30", daysSinceVisit: 195, totalSpend: 1800, lastService: "AC recharge", vehicle: "2020 Hyundai Tucson", visits: 6 },
+        { id: "lc8", name: "Lisa Nguyen", phone: "+1 604-555-0808", lastVisit: "2024-09-05", daysSinceVisit: 523, totalSpend: 12400, lastService: "Major engine repair", vehicle: "2016 Audi Q5", visits: 22 },
+    ];
+
+    const filtered = lapsedCustomers.filter(c => {
+        if (urgencyFilter === "90-180" && (c.daysSinceVisit < 90 || c.daysSinceVisit > 180)) return false;
+        if (urgencyFilter === "180-365" && (c.daysSinceVisit < 180 || c.daysSinceVisit > 365)) return false;
+        if (urgencyFilter === "365+" && c.daysSinceVisit < 365) return false;
+        if (search) {
+            const q = search.toLowerCase();
+            return c.name.toLowerCase().includes(q) || c.vehicle.toLowerCase().includes(q) || c.phone.includes(q);
+        }
+        return true;
+    });
+
+    const getUrgencyColor = (days: number) => {
+        if (days >= 365) return { bg: "bg-red-50", text: "text-red-700", border: "border-red-200", label: "Critical" };
+        if (days >= 180) return { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", label: "At Risk" };
+        return { bg: "bg-yellow-50", text: "text-yellow-700", border: "border-yellow-200", label: "Cooling" };
+    };
+
+    const totalLostRevenue = lapsedCustomers.reduce((sum, c) => sum + Math.round(c.totalSpend / c.visits * 2), 0);
+    const criticalCount = lapsedCustomers.filter(c => c.daysSinceVisit >= 365).length;
+    const atRiskCount = lapsedCustomers.filter(c => c.daysSinceVisit >= 180 && c.daysSinceVisit < 365).length;
+
+    return (
+        <div className="space-y-6">
+            {/* Reactivation Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0">
+                    <CardHeader className="pb-1"><CardTitle className="text-xs text-slate-400 uppercase">Lapsed Customers</CardTitle></CardHeader>
+                    <CardContent><span className="text-3xl font-bold">{lapsedCustomers.length}</span></CardContent>
+                </Card>
+                <Card className="bg-white border-slate-200">
+                    <CardHeader className="pb-1"><CardTitle className="text-xs text-slate-500 uppercase flex items-center gap-1"><DollarSign className="h-3 w-3" /> Est. Lost Revenue/Year</CardTitle></CardHeader>
+                    <CardContent><span className="text-2xl font-bold text-red-600">${totalLostRevenue.toLocaleString()}</span></CardContent>
+                </Card>
+                <Card className="bg-white border-slate-200">
+                    <CardHeader className="pb-1"><CardTitle className="text-xs text-slate-500 uppercase flex items-center gap-1"><AlertCircle className="h-3 w-3" /> Critical (1yr+)</CardTitle></CardHeader>
+                    <CardContent><span className="text-2xl font-bold text-red-600">{criticalCount}</span></CardContent>
+                </Card>
+                <Card className="bg-white border-slate-200">
+                    <CardHeader className="pb-1"><CardTitle className="text-xs text-slate-500 uppercase flex items-center gap-1"><Clock className="h-3 w-3" /> At Risk (6mo+)</CardTitle></CardHeader>
+                    <CardContent><span className="text-2xl font-bold text-amber-600">{atRiskCount}</span></CardContent>
+                </Card>
+            </div>
+
+            {/* Filters */}
+            <div className="flex items-center gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-[200px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                        placeholder="Search by name, vehicle, or phone..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="pl-10 h-10 bg-white"
+                    />
+                </div>
+                <div className="flex gap-1 flex-wrap">
+                    {[
+                        { id: "all" as const, label: "All", count: lapsedCustomers.length },
+                        { id: "90-180" as const, label: "90-180 days", count: lapsedCustomers.filter(c => c.daysSinceVisit >= 90 && c.daysSinceVisit <= 180).length },
+                        { id: "180-365" as const, label: "6-12 months", count: lapsedCustomers.filter(c => c.daysSinceVisit >= 180 && c.daysSinceVisit <= 365).length },
+                        { id: "365+" as const, label: "1yr+", count: lapsedCustomers.filter(c => c.daysSinceVisit >= 365).length },
+                    ].map(f => (
+                        <button
+                            key={f.id}
+                            onClick={() => setUrgencyFilter(f.id)}
+                            className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${urgencyFilter === f.id ? "bg-slate-900 text-white" : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"}`}
+                        >{f.label} ({f.count})</button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Customer Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filtered.map(customer => {
+                    const urgency = getUrgencyColor(customer.daysSinceVisit);
+                    return (
+                        <Card key={customer.id} className={`border shadow-sm hover:shadow-md transition-all ${urgency.border}`}>
+                            <CardContent className="p-4 space-y-3">
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <h3 className="font-bold text-slate-900">{customer.name}</h3>
+                                        <p className="text-xs text-slate-500 font-mono">{customer.phone}</p>
+                                    </div>
+                                    <Badge className={`${urgency.bg} ${urgency.text} border ${urgency.border} text-xs`}>
+                                        {urgency.label}
+                                    </Badge>
+                                </div>
+
+                                <div className="flex items-center gap-2 text-sm">
+                                    <Car className="h-4 w-4 text-slate-400" />
+                                    <span className="text-slate-700">{customer.vehicle}</span>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-2 py-2 border-t border-b border-slate-100">
+                                    <div>
+                                        <p className="text-xs text-slate-500">Last Visit</p>
+                                        <p className="text-sm font-semibold text-slate-900">{customer.daysSinceVisit}d ago</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-500">Total Spend</p>
+                                        <p className="text-sm font-semibold text-green-600">${customer.totalSpend.toLocaleString()}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-500">Visits</p>
+                                        <p className="text-sm font-semibold text-slate-900">{customer.visits}</p>
+                                    </div>
+                                </div>
+
+                                <div className="text-xs text-slate-600">
+                                    <span className="font-medium">Last service:</span> {customer.lastService}
+                                </div>
+
+                                <Button
+                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                                    size="sm"
+                                    onClick={() => onWinBack(customer)}
+                                >
+                                    <RotateCcw className="h-4 w-4 mr-2" />
+                                    Win Back — Create Deal
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
 // ============= MAIN PAGE =============
 export default function PipelinePage() {
     const [deals, setDeals] = useState<Deal[]>([]);
-    const [activeTab, setActiveTab] = useState<"deals" | "database">("deals");
+    const [activeTab, setActiveTab] = useState<"deals" | "all" | "reactivation">("deals");
     const [isLoading, setIsLoading] = useState(true);
     const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -860,18 +1128,23 @@ export default function PipelinePage() {
         fetchDeals();
     }, []);
 
-    const handleAddDealFromCustomer = (customer: Customer) => {
+
+
+    const handleWinBack = (customer: LapsedCustomer) => {
         const newDeal: Deal = {
             id: `d${Date.now()}`,
-            vehicle: customer.vehicles[0] || { year: "", make: "Unknown", model: "" },
+            vehicle: { year: customer.vehicle.split(" ")[0] || "", make: customer.vehicle.split(" ")[1] || "", model: customer.vehicle.split(" ").slice(2).join(" ") || "" },
             customer_name: customer.name,
-            issue: "New Inquiry",
-            value: 0,
-            source: "phone",
+            customer_phone: customer.phone,
+            issue: `Reactivation — Last: ${customer.lastService}`,
+            value: Math.round(customer.totalSpend / customer.visits),
+            source: "service_desk",
             created_at: new Date().toISOString(),
             status: "new_inquiry"
         };
         setDeals(prev => [newDeal, ...prev]);
+        setActiveTab("deals");
+        toast.success(`🎉 Win-back deal created for ${customer.name}!`, { description: `Added to New Inquiry pipeline` });
     };
 
     const handleCreateDeal = async () => {
@@ -972,7 +1245,9 @@ export default function PipelinePage() {
                                         { value: "new_inquiry", label: "New Inquiry" },
                                         { value: "quote_sent", label: "Quote Sent" },
                                         { value: "follow_up", label: "Follow-Up" },
-                                        { value: "booked", label: "Booked" }
+                                        { value: "booked", label: "Booked" },
+                                        { value: "not_booked", label: "Not Booked" },
+                                        { value: "completed", label: "Completed" }
                                     ].map(opt => (
                                         <button
                                             key={opt.value}
@@ -1061,7 +1336,7 @@ export default function PipelinePage() {
                 <div className="mb-4 flex items-center justify-between">
                     <div className="flex items-baseline gap-3">
                         <h1 className="text-2xl font-bold text-slate-900">Pipeline</h1>
-                        <span className="text-sm text-slate-500">Track leads from inquiry to booked</span>
+                        <span className="text-sm text-slate-500">Track leads from inquiry to completion</span>
                     </div>
                     <Button
                         onClick={() => setShowCreateModal(true)}
@@ -1073,20 +1348,20 @@ export default function PipelinePage() {
 
                 {/* Tabs */}
                 <div className="flex gap-2 mb-6">
-                    <button
-                        onClick={() => setActiveTab("deals")}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === "deals" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-white"}`}
-                    >
-                        <Kanban className="h-4 w-4" />
-                        Active Deals
-                    </button>
-                    <button
-                        onClick={() => setActiveTab("database")}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === "database" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-white"}`}
-                    >
-                        <Database className="h-4 w-4" />
-                        Customer Database
-                    </button>
+                    {[
+                        { id: "deals" as const, label: "Active Deals", icon: Kanban },
+                        { id: "all" as const, label: "All Deals", icon: List },
+                        { id: "reactivation" as const, label: "Reactivation", icon: RotateCcw },
+                    ].map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === tab.id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-white"}`}
+                        >
+                            <tab.icon className="h-4 w-4" />
+                            {tab.label}
+                        </button>
+                    ))}
                 </div>
 
                 {/* Tab Content */}
@@ -1094,16 +1369,22 @@ export default function PipelinePage() {
                     {activeTab === "deals" && (
                         <>
                             <ConversionScoreboard deals={deals} />
-                            <DealBoard
-                                deals={deals}
-                                setDeals={setDeals}
-                                onSelectDeal={setSelectedDeal}
-                            />
+                            <div className="overflow-x-auto">
+                                <DealBoard
+                                    deals={deals}
+                                    setDeals={setDeals}
+                                    onSelectDeal={setSelectedDeal}
+                                />
+                            </div>
                         </>
                     )}
-                    {activeTab === "database" && (
-                        <CustomerDatabase onAddDeal={handleAddDealFromCustomer} />
+                    {activeTab === "all" && (
+                        <AllDealsTable deals={deals} onSelectDeal={setSelectedDeal} />
                     )}
+                    {activeTab === "reactivation" && (
+                        <ReactivationTab onWinBack={handleWinBack} />
+                    )}
+
                 </div>
 
                 {/* Deal Detail Panel */}

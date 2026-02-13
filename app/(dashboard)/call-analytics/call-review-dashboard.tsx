@@ -43,7 +43,7 @@ import {
 } from "./useMockCallData";
 
 // ============= SCORE BADGE COMPONENT =============
-function ScoreBadge({ score }: { score: number }) {
+export function ScoreBadge({ score }: { score: number }) {
     const getScoreColor = (s: number) => {
         if (s >= 80) return "bg-emerald-500";
         if (s >= 60) return "bg-amber-500";
@@ -74,7 +74,7 @@ function ScoreBadge({ score }: { score: number }) {
 }
 
 // ============= VIBE CHECK HEADER =============
-function VibeCheckHeader({
+export function VibeCheckHeader({
     score,
     metadata,
     sentimentData
@@ -201,7 +201,7 @@ function VibeCheckHeader({
 }
 
 // ============= EMOTION PILL COMPONENT =============
-function EmotionPill({ emotion, score }: { emotion: string; score: number }) {
+export function EmotionPill({ emotion, score }: { emotion: string; score: number }) {
     const color = MOCK_getEmotionColor(emotion, score);
 
     const colorClasses = {
@@ -221,7 +221,7 @@ function EmotionPill({ emotion, score }: { emotion: string; score: number }) {
 }
 
 // ============= TRANSCRIPT BUBBLE =============
-function TranscriptBubble({ item }: { item: MOCK_TranscriptItem }) {
+export function TranscriptBubble({ item }: { item: MOCK_TranscriptItem }) {
     const isAgent = item.speaker === 'Agent';
 
     return (
@@ -265,7 +265,7 @@ function TranscriptBubble({ item }: { item: MOCK_TranscriptItem }) {
 }
 
 // ============= EMOTIONAL TRANSCRIPT =============
-function EmotionalTranscript({ transcript }: { transcript: MOCK_TranscriptItem[] }) {
+export function EmotionalTranscript({ transcript }: { transcript: MOCK_TranscriptItem[] }) {
     return (
         <Card className="flex-1 border-0 shadow-sm">
             <CardHeader className="pb-3 border-b">
@@ -286,7 +286,7 @@ function EmotionalTranscript({ transcript }: { transcript: MOCK_TranscriptItem[]
 }
 
 // ============= SCORECARD CATEGORY SECTION =============
-function ScorecardCategory({
+export function ScorecardCategory({
     category,
     items,
     icon: Icon
@@ -360,7 +360,7 @@ function ScorecardCategory({
 }
 
 // ============= SMART SCORECARD =============
-function SmartScorecard({ scorecard }: { scorecard: MOCK_ScorecardItem[] }) {
+export function SmartScorecard({ scorecard }: { scorecard: MOCK_ScorecardItem[] }) {
     const categories = {
         Compliance: { icon: Shield, items: scorecard.filter(i => i.category === 'Compliance') },
         Empathy: { icon: Heart, items: scorecard.filter(i => i.category === 'Empathy') },
@@ -402,7 +402,11 @@ function SmartScorecard({ scorecard }: { scorecard: MOCK_ScorecardItem[] }) {
 }
 
 // ============= MAIN DASHBOARD COMPONENT =============
-export function CallReviewDashboard() {
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+export function CallReviewDashboard({ callId }: { callId?: string }) {
     const {
         MOCK_OverallScore,
         MOCK_CallMetadata,
@@ -413,6 +417,15 @@ export function CallReviewDashboard() {
 
     return (
         <div className="space-y-6">
+            <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" asChild className="text-slate-500 hover:text-slate-900 px-0 hover:bg-transparent">
+                    <Link href="/call-analytics">
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        Back to Overview
+                    </Link>
+                </Button>
+            </div>
+
             {/* VIBE CHECK HEADER */}
             <VibeCheckHeader
                 score={MOCK_OverallScore}

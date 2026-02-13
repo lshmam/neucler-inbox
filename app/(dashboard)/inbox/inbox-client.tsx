@@ -149,12 +149,12 @@ function LeadContextPanel({ contact, merchantId, onUpdate, onResolve, onClose, m
 
     const getStatusConfig = (s: string) => {
         switch (s) {
-            case 'new_lead': return { label: 'New', color: 'text-yellow-500' };
-            case 'qualifying': return { label: 'Qualifying', color: 'text-blue-500' };
-            case 'conversation': return { label: 'Conversation', color: 'text-purple-500' };
-            case 'booked': return { label: 'Booked', color: 'text-green-500' };
-            case 'lost': return { label: 'Lost', color: 'text-red-500' };
-            default: return { label: 'New', color: 'text-yellow-500' };
+            case 'new_lead': return { label: 'New', color: 'text-slate-500' };
+            case 'qualifying': return { label: 'Qualifying', color: 'text-slate-600' };
+            case 'conversation': return { label: 'Conversation', color: 'text-slate-700' };
+            case 'booked': return { label: 'Booked', color: 'text-slate-900' };
+            case 'lost': return { label: 'Lost', color: 'text-slate-400' };
+            default: return { label: 'New', color: 'text-slate-500' };
         }
     };
 
@@ -183,13 +183,13 @@ function LeadContextPanel({ contact, merchantId, onUpdate, onResolve, onClose, m
 
     const getActivityIcon = (type: string) => {
         switch (type) {
-            case 'survey': return <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600"><CheckCircle2 className="h-4 w-4" /></div>;
-            case 'payment': return <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600"><span className="text-sm">💳</span></div>;
-            case 'call': return <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-600"><Phone className="h-4 w-4" /></div>;
-            case 'note': return <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600"><Pencil className="h-4 w-4" /></div>;
-            case 'status_change': return <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600"><span className="text-sm">⚡</span></div>;
-            case 'assignment': return <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600"><span className="text-sm">👤</span></div>;
-            case 'message': return <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600"><MessageSquare className="h-4 w-4" /></div>;
+            case 'survey': return <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600"><CheckCircle2 className="h-4 w-4" /></div>;
+            case 'payment': return <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600"><span className="text-sm">💳</span></div>;
+            case 'call': return <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600"><Phone className="h-4 w-4" /></div>;
+            case 'note': return <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600"><Pencil className="h-4 w-4" /></div>;
+            case 'status_change': return <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-700"><span className="text-sm">⚡</span></div>;
+            case 'assignment': return <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600"><span className="text-sm">👤</span></div>;
+            case 'message': return <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-700"><MessageSquare className="h-4 w-4" /></div>;
             default: return <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600"><Clock className="h-4 w-4" /></div>;
         }
     };
@@ -199,12 +199,12 @@ function LeadContextPanel({ contact, merchantId, onUpdate, onResolve, onClose, m
     const overflowCount = localTags.length - 4;
 
     return (
-        <div className="w-[320px] border-l bg-slate-100 text-slate-900 hidden xl:flex flex-col shrink-0 h-full">
+        <div className="w-[320px] border-l border-slate-200 bg-white text-slate-900 hidden xl:flex flex-col shrink-0 h-full min-h-0 overflow-hidden">
             {/* HEADER */}
             <div className="p-4 flex items-start justify-between">
                 <div className="flex items-center gap-3">
                     <Avatar className="h-12 w-12">
-                        <AvatarFallback className="text-lg bg-gradient-to-br from-[#906CDD] to-[#7a5bb5] text-white font-bold">
+                        <AvatarFallback className="text-lg bg-slate-900 text-white font-bold">
                             {contact.display_name.substring(0, 2).toUpperCase()}
                         </AvatarFallback>
                     </Avatar>
@@ -273,7 +273,7 @@ function LeadContextPanel({ contact, merchantId, onUpdate, onResolve, onClose, m
             </div>
 
             {/* TAB CONTENT */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto">
                 {activeTab === 'details' ? (
                     <div className="p-4 space-y-4">
                         {/* STATUS */}
@@ -318,10 +318,10 @@ function LeadContextPanel({ contact, merchantId, onUpdate, onResolve, onClose, m
                         <div>
                             <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">Card on File</p>
                             <div className="flex items-center gap-2 text-sm">
-                                <div className="bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">VISA</div>
+                                <div className="bg-slate-900 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">VISA</div>
                                 <span>Visa •••• 1234</span>
                             </div>
-                            <p className="text-xs text-blue-400 mt-0.5">Expires 12/28</p>
+                            <p className="text-xs text-slate-400 mt-0.5">Expires 12/28</p>
                         </div>
 
                         {/* TAGS */}
@@ -472,7 +472,7 @@ function LeadContextPanel({ contact, merchantId, onUpdate, onResolve, onClose, m
             {/* BOTTOM ACTION BUTTONS */}
             <div className="p-3 border-t border-slate-200 space-y-2">
                 <Button
-                    className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white h-9 text-sm"
+                    className="w-full gap-2 bg-slate-900 hover:bg-slate-800 text-white h-9 text-sm"
                     onClick={onResolve}
                 >
                     <CheckCircle2 className="h-4 w-4" />
@@ -482,7 +482,7 @@ function LeadContextPanel({ contact, merchantId, onUpdate, onResolve, onClose, m
                 <div className="flex gap-2">
                     <Button
                         variant="outline"
-                        className="flex-1 gap-1.5 border-purple-300 text-purple-600 hover:bg-purple-50 hover:text-purple-700 h-8 text-xs"
+                        className="flex-1 gap-1.5 border-slate-300 text-slate-600 hover:bg-slate-100 hover:text-slate-900 h-8 text-xs"
                         onClick={async () => {
                             const sortedMsgs = [...messages].sort((a, b) =>
                                 new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
@@ -538,7 +538,7 @@ function LeadContextPanel({ contact, merchantId, onUpdate, onResolve, onClose, m
                 {/* Create Ticket Button */}
                 <Button
                     variant="outline"
-                    className="w-full gap-2 border-blue-300 text-blue-600 hover:bg-blue-50 hover:text-blue-700 h-9 text-sm"
+                    className="w-full gap-2 border-slate-300 text-slate-600 hover:bg-slate-100 hover:text-slate-900 h-9 text-sm"
                     onClick={async () => {
                         try {
                             const lastInbound = [...messages].reverse().find(m => m.direction === 'inbound');
@@ -899,7 +899,7 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                         <div className="flex items-center gap-2">
                             <div
                                 className={`flex items-center gap-2 px-2 py-1 rounded-full text-xs font-medium transition-colors
-                                    ${aiEnabled ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-500'}`}
+                                    ${aiEnabled ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}
                             >
                                 <Sparkles className="h-3 w-3" />
                                 <span>AI Auto Reply</span>
@@ -918,7 +918,7 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                                             setAiToggling(false);
                                         }
                                     }}
-                                    className="h-4 w-7 data-[state=checked]:bg-purple-600"
+                                    className="h-4 w-7 data-[state=checked]:bg-slate-900"
                                 />
                             </div>
                         </div>
@@ -964,7 +964,7 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                                     }}
                                     className={`
                                     p-4 border-b cursor-pointer transition-colors hover:bg-slate-100
-                                    ${selectedContact?.customer_id === convo.customer_id ? 'bg-blue-50/50 border-l-4 border-l-blue-600' : 'border-l-4 border-l-transparent'}
+                                    ${selectedContact?.customer_id === convo.customer_id ? 'bg-slate-100 border-l-4 border-l-slate-900' : 'border-l-4 border-l-transparent'}
                                 `}
                                 >
                                     <div className="flex justify-between items-start mb-1">
@@ -977,8 +977,8 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                                     </div>
                                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                         <div className={`
-                                        p-1 rounded text-white
-                                        ${convo.last_channel === 'sms' ? 'bg-green-500' : convo.last_channel === 'email' ? 'bg-blue-500' : convo.last_channel === 'widget' ? 'bg-purple-500' : 'bg-orange-500'}
+                                        p-1 rounded
+                                        ${convo.last_channel === 'sms' ? 'bg-slate-200 text-slate-600' : convo.last_channel === 'email' ? 'bg-slate-200 text-slate-600' : convo.last_channel === 'widget' ? 'bg-slate-300 text-slate-700' : 'bg-slate-200 text-slate-600'}
                                     `}>
                                             {getIcon(convo.last_channel)}
                                         </div>
@@ -986,12 +986,12 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                                             {convo.last_message_preview}
                                         </p>
                                         {convo.tags?.includes('needs_human') && (
-                                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5 animate-pulse">
+                                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 animate-pulse bg-slate-900 text-white border-0">
                                                 🙋 Needs You
                                             </Badge>
                                         )}
                                         {convo.status === 'needs_attention' && (
-                                            <div className="h-2 w-2 rounded-full bg-blue-600 shrink-0" />
+                                            <div className="h-2 w-2 rounded-full bg-slate-900 shrink-0" />
                                         )}
                                     </div>
                                 </div>
@@ -1039,15 +1039,15 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                                         <div className={`
                                             max-w-[80%] rounded-xl p-4 text-sm shadow-sm
                                             ${msg.channel === 'call' ? 'w-full max-w-md bg-white border border-slate-200' : ''}
-                                            ${msg.channel !== 'call' && msg.direction === 'outbound' ? 'bg-blue-600 text-white rounded-tr-none' : ''}
+                                            ${msg.channel !== 'call' && msg.direction === 'outbound' ? 'bg-slate-900 text-white rounded-tr-none' : ''}
                                             ${msg.channel !== 'call' && msg.direction === 'inbound' ? 'bg-white border border-slate-200 rounded-tl-none' : ''}
                                         `}>
 
                                             {/* CALL BANNER */}
                                             {msg.channel === 'call' && (
                                                 <div className="flex items-start gap-3">
-                                                    <div className="bg-orange-100 p-2 rounded-full">
-                                                        <Phone className="h-4 w-4 text-orange-600" />
+                                                    <div className="bg-slate-100 p-2 rounded-full">
+                                                        <Phone className="h-4 w-4 text-slate-600" />
                                                     </div>
                                                     <div>
                                                         <p className="font-bold text-slate-900 mb-1">
@@ -1091,7 +1091,7 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                                                 <p>{msg.content}</p>
                                             )}
 
-                                            <div className={`text-[10px] mt-1 text-right ${msg.direction === 'outbound' && msg.channel !== 'call' ? 'text-blue-100' : 'text-slate-400'}`}>
+                                            <div className={`text-[10px] mt-1 text-right ${msg.direction === 'outbound' && msg.channel !== 'call' ? 'text-slate-300' : 'text-slate-400'}`}>
                                                 {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                             </div>
                                         </div>
@@ -1111,7 +1111,7 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                                     onChange={(e) => setNewMessage(e.target.value)}
                                     onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
                                 />
-                                <Button size="icon" className="absolute right-1 top-1 h-10 w-10 bg-blue-600 hover:bg-blue-700" onClick={handleSendMessage} disabled={isSending}>
+                                <Button size="icon" className="absolute right-1 top-1 h-10 w-10 bg-slate-900 hover:bg-slate-800" onClick={handleSendMessage} disabled={isSending}>
                                     {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                                 </Button>
                             </div>
@@ -1141,7 +1141,7 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                                             }
                                         }}
                                         disabled={isGeneratingLink}
-                                        className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-all bg-green-100 text-green-700 hover:bg-green-200 disabled:opacity-50"
+                                        className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-all bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50"
                                     >
                                         {isGeneratingLink ? <Loader2 className="h-3 w-3 animate-spin" /> : <CalendarPlus className="h-3 w-3" />}
                                         <span>Quick Book</span>
@@ -1150,7 +1150,7 @@ export function InboxClient({ initialConversations, merchantId, isAiEnabled: ini
                                         onClick={() => setTrainAi(!trainAi)}
                                         className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-all
                                             ${trainAi
-                                                ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-300'
+                                                ? 'bg-slate-900 text-white ring-1 ring-slate-700'
                                                 : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
                                     >
                                         <BookOpen className="h-3 w-3" />
