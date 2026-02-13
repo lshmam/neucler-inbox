@@ -61,6 +61,7 @@ interface SidebarProps {
         color: string;
     };
     onNavigate?: () => void;
+    hideDemoToggle?: boolean;
 }
 
 const DEFAULT_BRANDING = {
@@ -69,7 +70,7 @@ const DEFAULT_BRANDING = {
     color: "blue"
 };
 
-export function Sidebar({ branding = DEFAULT_BRANDING, onNavigate }: SidebarProps) {
+export function Sidebar({ branding = DEFAULT_BRANDING, onNavigate, hideDemoToggle = false }: SidebarProps) {
     const pathname = usePathname();
 
     const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
@@ -168,6 +169,14 @@ export function Sidebar({ branding = DEFAULT_BRANDING, onNavigate }: SidebarProp
 
             {/* --- FOOTER --- */}
             <div className="p-3 border-t border-slate-200 bg-white shrink-0">
+                {!hideDemoToggle && (
+                    <div className="p-4 border-t border-slate-200 shrink-0 bg-white">
+                        <DemoSwitcher />
+                        <div className="text-xs text-slate-400 text-center mt-2">
+                            v1.2.0 • <Link href="/help" className="hover:text-slate-600">Help</Link>
+                        </div>
+                    </div>
+                )}
                 <a
                     href="/auth/logout"
                     className="flex items-center rounded-lg px-3 py-2.5 text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-all border border-transparent hover:border-red-100"

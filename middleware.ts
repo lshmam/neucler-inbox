@@ -44,6 +44,13 @@ export default async function proxy(request: NextRequest) {
         }
     }
 
+    // CRITICAL: Strict override for production
+    // Ensure app.neucler.com NEVER shows demo data, regardless of other signals
+    if (hostname === "app.neucler.com") {
+        isDemo = false;
+        demoIndustry = "real";
+    }
+
     // Set Headers
     const requestHeaders = new Headers(request.headers);
     if (isDemo) {

@@ -18,9 +18,10 @@ interface DashboardShellProps {
     };
     children: React.ReactNode;
     knowledgeBaseArticles?: any[];
+    hideDemoToggle?: boolean;
 }
 
-export function DashboardShell({ branding, children, knowledgeBaseArticles = [] }: DashboardShellProps) {
+export function DashboardShell({ branding, children, knowledgeBaseArticles = [], hideDemoToggle = false }: DashboardShellProps) {
     const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
 
     // Keyboard shortcut: Ctrl+K to toggle KB sidebar
@@ -44,7 +45,7 @@ export function DashboardShell({ branding, children, knowledgeBaseArticles = [] 
 
                     {/* Desktop Sidebar - Hidden on mobile */}
                     <div className="hidden h-full md:flex md:flex-col md:fixed md:inset-y-0 z-[80]">
-                        <Sidebar branding={branding} />
+                        <Sidebar branding={branding} hideDemoToggle={hideDemoToggle} />
                     </div>
 
                     {/* Main Content */}

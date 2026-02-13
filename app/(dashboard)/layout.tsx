@@ -95,8 +95,15 @@ export default async function DashboardLayout({
         color: profile?.brand_color || "#ffffff"
     };
 
+    // Hide demo toggle on production domain
+    const isProduction = hostname === "app.neucler.com";
+
     return (
-        <DashboardShell branding={branding} knowledgeBaseArticles={kbArticles || []}>
+        <DashboardShell
+            branding={branding}
+            knowledgeBaseArticles={kbArticles || []}
+            hideDemoToggle={isProduction}
+        >
             {children}
         </DashboardShell>
     );
