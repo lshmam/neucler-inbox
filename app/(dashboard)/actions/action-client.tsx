@@ -36,6 +36,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCall } from "@/components/call-context";
+import { useDemo } from "@/components/demo-provider";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -46,7 +47,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 // ============= TYPES =============
-interface ActionItem {
+export interface ActionItem {
     id: string;
     name: string;
     phone: string;
@@ -67,7 +68,7 @@ interface ActionItem {
     };
 }
 
-// ============= MOCK ACTIONS =============
+// ============= MOCK ACTIONS (Fallback) =============
 const MOCK_ACTIONS: ActionItem[] = [
     {
         id: "a1", name: "Sarah Miller", phone: "+1 604-555-1234",
@@ -93,59 +94,19 @@ const MOCK_ACTIONS: ActionItem[] = [
         value: 350, timeAgo: "3 hours ago",
         customerData: { lastVisit: "3 months ago", totalSpend: 4800, visits: 6, openDeal: { service: "Oil Change + Full Inspection", value: 350, stage: "Booked → No Show" }, notes: "VIP customer. Very busy schedule. Offer flexible rescheduling." }
     },
-    {
-        id: "a4", name: "Jessica Pearson", phone: "+1 604-555-3456",
-        vehicle: "2021 Mercedes GLC 300", tags: ["Price Concern"], type: "unbooked_lead", priority: "high",
-        reason: "Requested quote for timing belt — hasn't booked yet",
-        context: "Called 3 days ago. Seemed interested but said she'd \"think about it.\" Quote: $1,200.",
-        value: 1200, timeAgo: "3 days ago",
-        customerData: { lastVisit: undefined, totalSpend: 0, visits: 0, openDeal: { service: "Timing Belt Replacement", value: 1200, stage: "Quote Sent" }, notes: "First-time customer. Comparing prices. Offer price match guarantee." }
-    },
-    {
-        id: "a5", name: "Rachel Zane", phone: "+1 604-555-7890",
-        vehicle: "2023 Audi Q5", tags: ["Follow-Up"], type: "follow_up", priority: "high",
-        reason: "Diagnosis complete — needs approval for transmission service",
-        context: "Dropped off car yesterday. Diagnosis found transmission fluid leak. Estimate: $1,800.",
-        value: 1800, timeAgo: "Yesterday",
-        customerData: { lastVisit: "Yesterday", totalSpend: 2400, visits: 3, openDeal: { service: "Transmission Fluid Leak Repair", value: 1800, stage: "Follow-Up" }, notes: "Waiting for her approval. She asked to call after 2 PM." }
-    },
-    {
-        id: "a6", name: "Louis Litt", phone: "+1 604-555-2345",
-        vehicle: "2018 Lexus RX 350", tags: ["Lapsed"], type: "reactivation", priority: "medium",
-        reason: "Last visit was 8 months ago — likely needs service",
-        context: "Regular customer who came in quarterly. May have switched shops.",
-        value: 0, timeAgo: "8 months since last visit",
-        customerData: { lastVisit: "June 2025", totalSpend: 5600, visits: 11, notes: "Was a quarterly regular. High lifetime value. Worth a personal call to win back." }
-    },
-    {
-        id: "a7", name: "Donna Paulsen", phone: "+1 604-555-6789",
-        tags: ["New Lead"], type: "unbooked_lead", priority: "medium",
-        reason: "Submitted online form — \"Check engine light on\"",
-        context: "Form submitted 5 hours ago. No phone call yet. Provided email only initially.",
-        value: 0, timeAgo: "5 hours ago",
-        customerData: { notes: "Online form lead. Check engine light. No vehicle details provided yet." }
-    },
-    {
-        id: "a8", name: "Robert Zane", phone: "+1 604-555-0123",
-        vehicle: "2017 Ford Explorer", tags: ["Recall"], type: "reactivation", priority: "low",
-        reason: "Service reminder — oil change due based on mileage estimate",
-        context: "Last oil change was 6 months ago. Based on his driving pattern, he's due.",
-        value: 89, timeAgo: "Due this week",
-        customerData: { lastVisit: "Aug 2025", totalSpend: 1800, visits: 7, notes: "Consistent customer. Always books same-day when called. Prefers mornings." }
-    },
 ];
 
-// ============= CONFIG =============
-const TYPE_CONFIG = {
-    missed_call: { icon: PhoneMissed, label: "Missed Call" },
-    unbooked_lead: { icon: Target, label: "Unbooked Lead" },
-    cancellation: { icon: CalendarX, label: "Cancellation" },
-    no_show: { icon: UserX, label: "No-Show" },
-    follow_up: { icon: Clock, label: "Follow-Up" },
-    reactivation: { icon: RefreshCw, label: "Win-Back" },
+// ============= CONFIGURATION =============
+const TYPE_CONFIG: Record<string, { label: string; icon: any }> = {
+    missed_call: { label: "Missed Call", icon: PhoneMissed },
+    unbooked_lead: { label: "Unbooked Lead", icon: Target },
+    cancellation: { label: "Cancellation", icon: CalendarX },
+    no_show: { label: "No-Show", icon: UserX },
+    reactivation: { label: "Win-Back", icon: RefreshCw },
+    follow_up: { label: "Follow-Up", icon: Clock },
 };
 
-const PRIORITY_CONFIG = {
+const PRIORITY_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
     urgent: { label: "Urgent", color: "text-red-600", bg: "bg-red-50", border: "border-red-100" },
     high: { label: "High", color: "text-orange-600", bg: "bg-orange-50", border: "border-orange-100" },
     medium: { label: "Medium", color: "text-slate-600", bg: "bg-slate-50", border: "border-slate-100" },
@@ -159,14 +120,14 @@ function ActionCard({ action, onCall, onComplete, onDismiss }: {
     onComplete: () => void;
     onDismiss: () => void;
 }) {
-    const typeConfig = TYPE_CONFIG[action.type];
+    const typeConfig = TYPE_CONFIG[action.type] || TYPE_CONFIG.missed_call;
     const TypeIcon = typeConfig.icon;
-    const priority = PRIORITY_CONFIG[action.priority];
+    const priority = PRIORITY_CONFIG[action.priority] || PRIORITY_CONFIG.low;
 
     return (
         <div className="group relative bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-300 flex flex-col h-full">
             <div className="p-5 flex-1">
-                {/* Header: Type & Action Buttons */}
+                {/* Header */}
                 <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-2">
                         <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center bg-slate-50 text-slate-500")}>
@@ -189,14 +150,12 @@ function ActionCard({ action, onCall, onComplete, onDismiss }: {
                     <h3 className="text-lg font-bold text-slate-900 mb-1 leading-tight">{action.name}</h3>
                     <p className="text-sm text-slate-600 mb-3">{action.reason}</p>
 
-                    {/* Context Box */}
                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 mb-3">
                         <p className="text-xs text-slate-500 italic leading-relaxed">
                             &ldquo;{action.context}&rdquo;
                         </p>
                     </div>
 
-                    {/* Metadata Tags */}
                     <div className="flex flex-wrap gap-2">
                         {action.vehicle && (
                             <Badge variant="outline" className="text-xs font-normal text-slate-500 bg-white border-slate-200">
@@ -214,22 +173,13 @@ function ActionCard({ action, onCall, onComplete, onDismiss }: {
                 </div>
             </div>
 
-            {/* Footer Actions */}
+            {/* Actions */}
             <div className="p-3 border-t border-slate-100 flex gap-2 bg-slate-50/30 rounded-b-xl">
-                <Button
-                    onClick={onCall}
-                    className="flex-1 bg-slate-900 hover:bg-slate-800 text-white h-9 text-xs shadow-sm"
-                >
-                    <Phone className="h-3.5 w-3.5 mr-2" />
-                    Call
+                <Button onClick={onCall} className="flex-1 bg-slate-900 hover:bg-slate-800 text-white h-9 text-xs shadow-sm">
+                    <Phone className="h-3.5 w-3.5 mr-2" /> Call
                 </Button>
                 <div className="flex gap-2">
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-9 w-9 border-slate-200 hover:bg-white text-slate-500"
-                        title="SMS"
-                    >
+                    <Button variant="outline" size="icon" className="h-9 w-9 border-slate-200 hover:bg-white text-slate-500">
                         <MessageSquare className="h-4 w-4" />
                     </Button>
                     <DropdownMenu>
@@ -257,13 +207,18 @@ function ActionCard({ action, onCall, onComplete, onDismiss }: {
     );
 }
 
+
 // ============= MAIN COMPONENT =============
 export function ActionsClient() {
-    const [actions, setActions] = useState<ActionItem[]>(MOCK_ACTIONS);
+    const { initiateCall } = useCall();
+    const { data, isDemo, industry } = useDemo(); // Use demo context
+
+    // Switch between demo data and mock/real data
+    const actionsSource = (isDemo && data?.actions?.length > 0) ? data.actions : MOCK_ACTIONS;
+
     const [activeFilter, setActiveFilter] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
-    const { initiateCall } = useCall();
 
     const handleCall = (action: ActionItem) => {
         initiateCall({
@@ -283,7 +238,8 @@ export function ActionsClient() {
     };
 
     const handleDismiss = (id: string) => {
-        setActions(prev => prev.filter(a => a.id !== id));
+        // For demo, we just hide it locally
+        setCompletedIds(prev => new Set([...prev, id]));
     };
 
     const toggleFilter = (filterId: string) => {
@@ -291,8 +247,9 @@ export function ActionsClient() {
     };
 
     // Filter Logic
-    const pendingActions = actions.filter(a => !completedIds.has(a.id));
-    const filteredActions = pendingActions.filter(a => {
+    const pendingActions = actionsSource.filter((a: ActionItem) => !completedIds.has(a.id));
+
+    const filteredActions = pendingActions.filter((a: ActionItem) => {
         const matchesFilter = activeFilter === "all" || a.type === activeFilter;
         const matchesSearch = a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             a.phone.includes(searchQuery) ||
@@ -301,7 +258,7 @@ export function ActionsClient() {
     });
 
     // Counts for Sidebar
-    const getCount = (type: string) => pendingActions.filter(a => a.type === type).length;
+    const getCount = (type: string) => pendingActions.filter((a: ActionItem) => a.type === type).length;
     const totalCount = pendingActions.length;
 
     const FILTERS = [
@@ -320,7 +277,7 @@ export function ActionsClient() {
             <div className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0">
                 <div className="p-6">
                     <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                        <Zap className="h-5 w-5 fill-slate-900" /> Actions
+                        <Zap className="h-5 w-5 fill-slate-900" /> {industry === 'medspa' || industry === 'dental' ? 'Patient Actions' : 'Actions'}
                     </h1>
                     <p className="text-xs text-slate-500 mt-2">
                         {totalCount} pending tasks requiring your attention.
@@ -365,7 +322,7 @@ export function ActionsClient() {
                         <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Impact</h4>
                         <div className="flex items-baseline gap-1">
                             <span className="text-2xl font-bold text-slate-900">
-                                ${pendingActions.reduce((acc, curr) => acc + curr.value, 0).toLocaleString()}
+                                ${pendingActions.reduce((acc: number, curr: ActionItem) => acc + curr.value, 0).toLocaleString()}
                             </span>
                             <span className="text-xs text-slate-500">at risk</span>
                         </div>
@@ -388,7 +345,7 @@ export function ActionsClient() {
                     <div className="relative w-72">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                         <Input
-                            placeholder="Search..."
+                            placeholder={`Search ${industry === 'auto' ? 'customers' : 'patients'}...`}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="pl-9 h-9 bg-slate-50 border-slate-200 focus:bg-white transition-colors"
@@ -398,29 +355,24 @@ export function ActionsClient() {
 
                 {/* Grid Content */}
                 <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
-                    {filteredActions.length === 0 ? (
-                        <div className="h-full flex flex-col items-center justify-center text-center max-w-sm mx-auto p-6">
-                            <div className="h-16 w-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                                <SearchX className="h-8 w-8 text-slate-300" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {filteredActions.map((action: ActionItem) => (
+                            <ActionCard
+                                key={action.id}
+                                action={action}
+                                onCall={() => handleCall(action)}
+                                onComplete={() => handleComplete(action.id)}
+                                onDismiss={() => handleDismiss(action.id)}
+                            />
+                        ))}
+
+                        {filteredActions.length === 0 && (
+                            <div className="col-span-full flex flex-col items-center justify-center py-20 text-slate-400">
+                                <SearchX className="h-10 w-10 mb-4 opacity-20" />
+                                <p>No actions found matching "{searchQuery}"</p>
                             </div>
-                            <h3 className="text-lg font-semibold text-slate-900">No actions found</h3>
-                            <p className="text-sm text-slate-500 mt-1">
-                                No pending actions match your current filters. Try changing filters or check back later.
-                            </p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-                            {filteredActions.map(action => (
-                                <ActionCard
-                                    key={action.id}
-                                    action={action}
-                                    onCall={() => handleCall(action)}
-                                    onComplete={() => handleComplete(action.id)}
-                                    onDismiss={() => handleDismiss(action.id)}
-                                />
-                            ))}
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

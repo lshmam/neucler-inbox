@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect } from "react";
 
 // ============= TYPES =============
-export type CallState = "idle" | "ringing" | "connected" | "ended";
+export type CallState = "idle" | "pre-call" | "ringing" | "connected" | "ended";
 export type CallDirection = "inbound" | "outbound";
 
 export interface CallCustomer {
@@ -19,6 +19,7 @@ export interface CallCustomer {
         stage: string;
     };
     notes?: string;
+    script?: string; // Talking points or script for the agent
 }
 
 export interface ActiveCall {
@@ -35,6 +36,7 @@ export interface ActiveCall {
 interface CallContextType {
     activeCall: ActiveCall | null;
     initiateCall: (customer: CallCustomer, direction?: CallDirection) => void;
+    startCall: () => void; // Transition from pre-call to ringing
     answerCall: () => void;
     endCall: () => void;
     setOutcome: (outcome: ActiveCall["outcome"]) => void;
@@ -73,24 +75,41 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }, [activeCall?.state]);
 
     const initiateCall = useCallback((customer: CallCustomer, direction: CallDirection = "outbound") => {
+        const initialState: CallState = direction === "inbound" ? "ringing" : "pre-call";
+        console.log("Initiating call:", { customer, direction, initialState });
+
         const call: ActiveCall = {
             id: `call-${Date.now()}`,
-            state: "ringing",
+            state: initialState,
             direction,
             customer,
             duration: 0,
         };
         setActiveCall(call);
+    }, []);
 
-        // Auto-connect after 2s for outbound (simulating pickup)
-        if (direction === "outbound") {
+    const startCall = useCallback(() => {
+        console.log("Starting call...");
+        setActiveCall(prev => {
+            if (!prev || prev.state !== "pre-call") {
+                console.warn("Cannot start call - invalid state:", prev?.state);
+                return prev;
+            }
+
+            // Start ringing
+            // Auto-connect after 2s for outbound (simulating pickup)
             setTimeout(() => {
-                setActiveCall(prev => prev && prev.state === "ringing"
-                    ? { ...prev, state: "connected", startedAt: Date.now() }
-                    : prev
-                );
+                setActiveCall(current => {
+                    if (current && current.state === "ringing") {
+                        console.log("Call connected!");
+                        return { ...current, state: "connected", startedAt: Date.now() };
+                    }
+                    return current;
+                });
             }, 2000);
-        }
+
+            return { ...prev, state: "ringing" };
+        });
     }, []);
 
     const simulateIncoming = useCallback((customer: CallCustomer) => {
@@ -127,6 +146,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         <CallContext.Provider value={{
             activeCall,
             initiateCall,
+            startCall,
             answerCall,
             endCall,
             setOutcome,

@@ -19,8 +19,15 @@ import {
     ChevronUp,
     ChevronDown,
     Sparkles,
+    Play,
+    Mic,
+    MicOff,
+    Volume2,
+    StickyNote,
+    CheckCircle2
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { Textarea } from "@/components/ui/textarea";
 
 function formatDuration(seconds: number) {
     const m = Math.floor(seconds / 60);
@@ -29,13 +36,34 @@ function formatDuration(seconds: number) {
 }
 
 export function CallPanel() {
-    const { activeCall, answerCall, endCall, setOutcome, setPostCallNotes, dismissCall } = useCall();
+    const { activeCall, startCall, answerCall, endCall, setOutcome, setPostCallNotes, dismissCall } = useCall();
     const [isMinimized, setIsMinimized] = useState(false);
     const [notes, setNotes] = useState("");
+    const [isMuted, setIsMuted] = useState(false);
+    const previousCallIdRef = useRef<string | null>(null);
+
+    // Sync notes from context if re-opening or minimized
+    useEffect(() => {
+        if (activeCall?.postCallNotes) {
+            setNotes(activeCall.postCallNotes);
+        } else {
+            setNotes("");
+        }
+
+        // Auto-maximize on new call
+        if (activeCall?.id && activeCall.id !== previousCallIdRef.current) {
+            console.log("New call detected, maximizing panel", activeCall.id);
+            setIsMinimized(false);
+            previousCallIdRef.current = activeCall.id;
+        }
+    }, [activeCall?.id, activeCall?.postCallNotes]);
 
     if (!activeCall) return null;
 
     const { state, direction, customer, duration } = activeCall;
+
+    // Debug logging
+    console.log("CallPanel render:", { state, isMinimized, customerName: customer.name });
 
     // ============= MINIMIZED BAR =============
     if (isMinimized) {
@@ -50,6 +78,7 @@ export function CallPanel() {
                         <span className="font-semibold text-sm">{customer.name}</span>
                         {state === "connected" && <span className="text-xs opacity-75 font-mono">{formatDuration(duration)}</span>}
                         {state === "ringing" && <span className="text-xs">Ringing...</span>}
+                        {state === "pre-call" && <span className="text-xs text-slate-500">Pre-Call Prep</span>}
                     </div>
                     <div className="flex items-center gap-2">
                         {state === "ringing" && direction === "inbound" && (
@@ -73,14 +102,15 @@ export function CallPanel() {
 
     // ============= FULL PANEL =============
     return (
-        <div className="fixed bottom-0 right-0 z-[100] w-full md:w-[420px] md:right-4 md:bottom-4">
-            <div className="bg-white rounded-t-2xl md:rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+        <div className="fixed bottom-0 right-0 z-[100] w-full md:w-[420px] md:right-4 md:bottom-4 transition-all duration-300 ease-in-out transform translate-y-0">
+            <div className="bg-white rounded-t-2xl md:rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
 
                 {/* ─── Header ─── */}
-                <div className={`px-5 py-4 flex items-center justify-between ${state === "ringing" ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white" :
+                <div className={`px-5 py-4 flex items-center justify-between shrink-0 ${state === "ringing" ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white" :
                         state === "connected" ? "bg-gradient-to-r from-slate-900 to-slate-800 text-white" :
-                            state === "ended" ? "bg-gradient-to-r from-slate-100 to-slate-50 text-slate-900" :
-                                "bg-white text-slate-900"
+                            state === "pre-call" ? "bg-slate-50 border-b border-slate-200 text-slate-900" :
+                                state === "ended" ? "bg-gradient-to-r from-slate-100 to-slate-50 text-slate-900" :
+                                    "bg-white text-slate-900"
                     }`}>
                     <div className="flex items-center gap-3">
                         {state === "ringing" && (
@@ -93,14 +123,21 @@ export function CallPanel() {
                                 <Phone className="h-5 w-5 text-white" />
                             </div>
                         )}
+                        {state === "pre-call" && (
+                            <div className="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center">
+                                <Sparkles className="h-5 w-5 text-slate-600" />
+                            </div>
+                        )}
                         {state === "ended" && (
                             <div className="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center">
                                 <PhoneOff className="h-5 w-5 text-slate-500" />
                             </div>
                         )}
+
                         <div>
                             <p className="font-bold text-base">{customer.name}</p>
-                            <p className={`text-xs ${state === "ended" ? "text-slate-500" : "opacity-75"}`}>
+                            <p className={`text-xs ${state === "ended" || state === "pre-call" ? "text-slate-500" : "opacity-75"}`}>
+                                {state === "pre-call" && "Pre-Call Prep"}
                                 {state === "ringing" && (direction === "inbound" ? "Incoming call..." : "Calling...")}
                                 {state === "connected" && customer.phone}
                                 {state === "ended" && `Call ended · ${formatDuration(duration)}`}
@@ -117,7 +154,7 @@ export function CallPanel() {
                         <button onClick={() => setIsMinimized(true)} className="opacity-75 hover:opacity-100 p-1">
                             <ChevronDown className="h-4 w-4" />
                         </button>
-                        {state === "ended" && (
+                        {(state === "ended" || state === "pre-call") && (
                             <button onClick={dismissCall} className="opacity-75 hover:opacity-100 p-1">
                                 <X className="h-4 w-4" />
                             </button>
@@ -125,191 +162,202 @@ export function CallPanel() {
                     </div>
                 </div>
 
-                {/* ─── Ringing: Pre-Call Info ─── */}
-                {state === "ringing" && (
-                    <div className="px-5 py-4 space-y-3">
-                        <div className="flex items-center gap-2 mb-3">
-                            <Sparkles className="h-4 w-4 text-amber-500" />
-                            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Customer Intel</span>
-                        </div>
-
-                        {/* Customer Details */}
+                {/* ─── STAGE 1: PRE-CALL ─── */}
+                {state === "pre-call" && (
+                    <div className="p-5 space-y-4 overflow-y-auto">
+                        {/* 1. Customer Context */}
                         <div className="grid grid-cols-2 gap-3">
                             {customer.vehicle && (
-                                <div className="bg-slate-50 rounded-lg p-2.5">
+                                <div className="bg-slate-50 rounded-lg p-2.5 border border-slate-100">
                                     <div className="flex items-center gap-1.5 text-slate-500 text-[10px] mb-0.5"><Car className="h-3 w-3" />VEHICLE</div>
                                     <p className="text-sm font-semibold text-slate-900">{customer.vehicle}</p>
                                 </div>
                             )}
-                            {customer.lastVisit && (
-                                <div className="bg-slate-50 rounded-lg p-2.5">
-                                    <div className="flex items-center gap-1.5 text-slate-500 text-[10px] mb-0.5"><Clock className="h-3 w-3" />LAST VISIT</div>
-                                    <p className="text-sm font-semibold text-slate-900">{customer.lastVisit}</p>
-                                </div>
-                            )}
                             {customer.totalSpend !== undefined && (
-                                <div className="bg-slate-50 rounded-lg p-2.5">
-                                    <div className="flex items-center gap-1.5 text-slate-500 text-[10px] mb-0.5"><DollarSign className="h-3 w-3" />TOTAL SPEND</div>
+                                <div className="bg-slate-50 rounded-lg p-2.5 border border-slate-100">
+                                    <div className="flex items-center gap-1.5 text-slate-500 text-[10px] mb-0.5"><DollarSign className="h-3 w-3" />LTV</div>
                                     <p className="text-sm font-semibold text-slate-900">${customer.totalSpend.toLocaleString()}</p>
-                                </div>
-                            )}
-                            {customer.visits !== undefined && (
-                                <div className="bg-slate-50 rounded-lg p-2.5">
-                                    <div className="flex items-center gap-1.5 text-slate-500 text-[10px] mb-0.5"><CalendarCheck className="h-3 w-3" />VISITS</div>
-                                    <p className="text-sm font-semibold text-slate-900">{customer.visits}</p>
                                 </div>
                             )}
                         </div>
 
-                        {/* Open Deal */}
-                        {customer.openDeal && (
-                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-[10px] font-bold uppercase text-amber-600">Open Deal</p>
-                                        <p className="text-sm font-semibold text-slate-900">{customer.openDeal.service}</p>
-                                        <p className="text-xs text-slate-500">Stage: {customer.openDeal.stage}</p>
+                        {/* 2. Talking Points / Script */}
+                        <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Sparkles className="h-4 w-4 text-indigo-600" />
+                                <span className="text-xs font-bold uppercase tracking-wider text-indigo-700">Recommended Script</span>
+                            </div>
+                            <p className="text-sm text-indigo-900 leading-relaxed">
+                                {customer.script || `Hi ${customer.name}, this is [Your Name] from Neucler Auto. I saw you had a missed call/inquiry about your ${customer.vehicle || 'vehicle'}. How can I help you today?`}
+                            </p>
+                        </div>
+
+                        {/* 3. Recent History / Notes */}
+                        {customer.notes ? (
+                            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                                <p className="text-[10px] font-bold uppercase text-slate-500 mb-1">Last Note</p>
+                                <p className="text-xs text-slate-600 italic">"{customer.notes}"</p>
+                            </div>
+                        ) : (
+                            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
+                                <p className="text-[10px] font-bold uppercase text-slate-500 mb-1">Open Deal</p>
+                                <p className="text-xs text-slate-600">{customer.openDeal?.service || "No active deals"}</p>
+                            </div>
+                        )}
+
+                        {/* 4. Action */}
+                        <div className="pt-2">
+                            <Button onClick={startCall} className="w-full h-12 text-base shadow-lg shadow-blue-900/10 bg-slate-900 hover:bg-slate-800">
+                                <Phone className="h-4 w-4 mr-2" /> Start Call
+                            </Button>
+                        </div>
+                    </div>
+                )}
+
+
+                {/* ─── STAGE 2: RINGING / CONNECTED (DURING CALL) ─── */}
+                {(state === "ringing" || state === "connected") && (
+                    <div className="p-5 flex-1 flex flex-col min-h-0">
+
+                        {state === "ringing" && (
+                            <div className="flex-1 flex flex-col items-center justify-center space-y-4 py-8">
+                                <div className="relative">
+                                    <div className="absolute inset-0 bg-green-400 rounded-full animate-ping opacity-20"></div>
+                                    <div className="h-20 w-20 rounded-full bg-green-100 flex items-center justify-center relative z-10">
+                                        <Phone className="h-8 w-8 text-green-600" />
                                     </div>
-                                    <span className="text-lg font-bold text-green-600">${customer.openDeal.value}</span>
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-lg font-semibold text-slate-900">Calling {customer.name}...</p>
+                                    <p className="text-sm text-slate-500">{customer.phone}</p>
                                 </div>
                             </div>
                         )}
 
-                        {/* Notes */}
-                        {customer.notes && (
-                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                                <div className="flex items-center gap-1.5 text-blue-600 text-[10px] font-bold uppercase mb-1">
-                                    <FileText className="h-3 w-3" />Notes
+                        {state === "connected" && (
+                            <>
+                                {/* In-Call Actions */}
+                                <div className="grid grid-cols-4 gap-2 mb-6">
+                                    <button onClick={() => setIsMuted(!isMuted)} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${isMuted ? "bg-slate-100 text-slate-900" : "text-slate-500 hover:bg-slate-50"}`}>
+                                        <div className={`h-10 w-10 rounded-full flex items-center justify-center ${isMuted ? "bg-slate-200" : "bg-slate-100"}`}>
+                                            {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                                        </div>
+                                        <span className="text-[10px] font-medium">Mute</span>
+                                    </button>
+                                    <button className="flex flex-col items-center gap-1 p-2 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors">
+                                        <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center">
+                                            <Volume2 className="h-5 w-5" />
+                                        </div>
+                                        <span className="text-[10px] font-medium">Speaker</span>
+                                    </button>
+                                    <button className="flex flex-col items-center gap-1 p-2 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors">
+                                        <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center">
+                                            <User className="h-5 w-5" />
+                                        </div>
+                                        <span className="text-[10px] font-medium">Keypad</span>
+                                    </button>
+                                    <button className="flex flex-col items-center gap-1 p-2 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors">
+                                        <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center">
+                                            <Play className="h-5 w-5" />
+                                        </div>
+                                        <span className="text-[10px] font-medium">Hold</span>
+                                    </button>
                                 </div>
-                                <p className="text-sm text-slate-700">{customer.notes}</p>
-                            </div>
+
+                                {/* Script / Notes Tabs */}
+                                <div className="flex-1 flex flex-col min-h-0 bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
+                                    <div className="flex border-b border-slate-200 bg-white">
+                                        <button className="flex-1 py-2 text-xs font-medium text-slate-900 border-b-2 border-slate-900">
+                                            Notes
+                                        </button>
+                                        <button className="flex-1 py-2 text-xs font-medium text-slate-500 hover:text-slate-700">
+                                            Script
+                                        </button>
+                                    </div>
+                                    <div className="flex-1 p-0">
+                                        <Textarea
+                                            placeholder="Type notes here during the call..."
+                                            className="w-full h-full resize-none border-0 bg-transparent focus-visible:ring-0 p-3 text-sm"
+                                            value={notes}
+                                            onChange={(e) => {
+                                                setNotes(e.target.value);
+                                                setPostCallNotes(e.target.value);
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            </>
                         )}
 
-                        {/* Action Buttons */}
-                        <div className="flex gap-2 pt-1">
-                            {direction === "inbound" ? (
-                                <>
-                                    <Button onClick={answerCall} className="flex-1 bg-green-600 hover:bg-green-700 text-white h-11">
-                                        <Phone className="h-4 w-4 mr-2" /> Answer
-                                    </Button>
-                                    <Button onClick={endCall} variant="destructive" className="h-11 px-4">
-                                        <PhoneOff className="h-4 w-4" />
-                                    </Button>
-                                </>
-                            ) : (
-                                <Button onClick={endCall} variant="destructive" className="flex-1 h-11">
-                                    <PhoneOff className="h-4 w-4 mr-2" /> Cancel Call
+                        {/* End Button */}
+                        <div className="pt-4 mt-auto">
+                            {(state === "ringing" || state === "connected") && (
+                                <Button onClick={endCall} variant="destructive" className="w-full h-12 shadow-md shadow-red-900/10">
+                                    <PhoneOff className="h-5 w-5 mr-2" /> End Call
                                 </Button>
                             )}
                         </div>
                     </div>
                 )}
 
-                {/* ─── Connected: During Call ─── */}
-                {state === "connected" && (
-                    <div className="px-5 py-4 space-y-3">
-                        {/* Quick Customer Info */}
-                        <div className="flex items-center gap-3 bg-slate-50 rounded-lg p-3">
-                            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                                <User className="h-5 w-5 text-blue-600" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-slate-900">{customer.vehicle || "Unknown vehicle"}</p>
-                                <p className="text-xs text-slate-500 truncate">
-                                    {customer.lastVisit ? `Last visit: ${customer.lastVisit}` : "New customer"}
-                                    {customer.totalSpend ? ` · $${customer.totalSpend.toLocaleString()} lifetime` : ""}
-                                </p>
-                            </div>
-                        </div>
 
-                        {/* Open Deal Reminder */}
-                        {customer.openDeal && (
-                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-center justify-between">
-                                <div>
-                                    <p className="text-[10px] font-bold uppercase text-amber-600">Open Quote</p>
-                                    <p className="text-sm font-semibold">{customer.openDeal.service} — ${customer.openDeal.value}</p>
-                                </div>
-                                <Badge className="bg-amber-100 text-amber-700 border-amber-300 text-xs">{customer.openDeal.stage}</Badge>
-                            </div>
-                        )}
-
-                        {/* Notes */}
-                        {customer.notes && (
-                            <div className="text-xs text-slate-500 bg-blue-50 rounded-lg p-2.5 border border-blue-100">
-                                💡 {customer.notes}
-                            </div>
-                        )}
-
-                        {/* Quick Actions */}
-                        <div className="grid grid-cols-2 gap-2">
-                            <Button variant="outline" size="sm" className="h-9 text-xs border-slate-200">
-                                <CalendarCheck className="h-3 w-3 mr-1.5" /> Book Appointment
-                            </Button>
-                            <Button variant="outline" size="sm" className="h-9 text-xs border-slate-200">
-                                <DollarSign className="h-3 w-3 mr-1.5" /> Send Quote
-                            </Button>
-                            <Button variant="outline" size="sm" className="h-9 text-xs border-slate-200">
-                                <MessageSquare className="h-3 w-3 mr-1.5" /> Send SMS
-                            </Button>
-                            <Button variant="outline" size="sm" className="h-9 text-xs border-slate-200">
-                                <FileText className="h-3 w-3 mr-1.5" /> Add Note
-                            </Button>
-                        </div>
-
-                        {/* End Call */}
-                        <Button onClick={endCall} variant="destructive" className="w-full h-11">
-                            <PhoneOff className="h-4 w-4 mr-2" /> End Call
-                        </Button>
-                    </div>
-                )}
-
-                {/* ─── Ended: Post-Call ─── */}
+                {/* ─── STAGE 3: POST-CALL ─── */}
                 {state === "ended" && (
-                    <div className="px-5 py-4 space-y-4">
-                        <div>
-                            <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Call Outcome</p>
+                    <div className="p-5 flex-1 flex flex-col overflow-y-auto">
+                        <div className="text-center mb-6">
+                            <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-slate-100 mb-2">
+                                <CheckCircle2 className="h-6 w-6 text-slate-400" />
+                            </div>
+                            <h3 className="text-lg font-bold text-slate-900">Call Ended</h3>
+                            <p className="text-sm text-slate-500">Duration: {formatDuration(duration)}</p>
+                        </div>
+
+                        {/* 1. Outcome */}
+                        <div className="mb-6">
+                            <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Select Outcome</p>
                             <div className="grid grid-cols-2 gap-2">
                                 {[
-                                    { id: "booked" as const, label: "Booked ✅", color: "bg-green-100 text-green-700 border-green-300 hover:bg-green-200" },
-                                    { id: "follow_up" as const, label: "Follow-Up 📞", color: "bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200" },
-                                    { id: "not_interested" as const, label: "Not Interested ❌", color: "bg-red-100 text-red-700 border-red-300 hover:bg-red-200" },
-                                    { id: "no_answer" as const, label: "No Answer 📵", color: "bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200" },
+                                    { id: "booked" as const, label: "Booked", icon: "✅", color: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 ring-emerald-500" },
+                                    { id: "follow_up" as const, label: "Follow-Up", icon: "📞", color: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 ring-blue-500" },
+                                    { id: "not_interested" as const, label: "Not Interested", icon: "❌", color: "bg-red-50 text-red-700 border-red-200 hover:bg-red-100 ring-red-500" },
+                                    { id: "no_answer" as const, label: "No Answer", icon: "📵", color: "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 ring-slate-500" },
                                 ].map(opt => (
                                     <button
                                         key={opt.id}
                                         onClick={() => setOutcome(opt.id)}
-                                        className={`px-3 py-2.5 rounded-lg text-sm font-medium border transition-all ${activeCall.outcome === opt.id
-                                                ? `${opt.color} ring-2 ring-offset-1 ring-slate-400 shadow-sm`
-                                                : `${opt.color} opacity-70`
+                                        className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-200 ${activeCall.outcome === opt.id
+                                                ? `${opt.color} border-transparent ring-2 ring-offset-1 shadow-sm`
+                                                : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
                                             }`}
                                     >
-                                        {opt.label}
+                                        <span className="text-xl mb-1">{opt.icon}</span>
+                                        <span className="text-xs font-semibold">{opt.label}</span>
                                     </button>
                                 ))}
                             </div>
                         </div>
 
-                        {/* Quick Notes */}
-                        <div>
-                            <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Notes</p>
-                            <textarea
+                        {/* 2. Notes Review */}
+                        <div className="flex-1 flex flex-col min-h-0 mb-4">
+                            <p className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Call Notes</p>
+                            <Textarea
                                 value={notes}
                                 onChange={(e) => {
                                     setNotes(e.target.value);
                                     setPostCallNotes(e.target.value);
                                 }}
-                                placeholder="What was discussed? Any follow-up needed?"
-                                className="w-full h-20 border border-slate-200 rounded-lg p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="Add any final notes about the call..."
+                                className="flex-1 min-h-[100px] border-slate-200 resize-none focus:border-slate-400 focus:ring-slate-400"
                             />
                         </div>
 
-                        {/* Save & Dismiss */}
+                        {/* 3. Submit */}
                         <Button
                             onClick={dismissCall}
                             disabled={!activeCall.outcome}
-                            className="w-full h-11 bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-50"
+                            className="w-full h-12 bg-slate-900 hover:bg-slate-800 text-white disabled:opacity-50"
                         >
-                            Save & Close
+                            Complete & Close
                         </Button>
                     </div>
                 )}
