@@ -1,8 +1,24 @@
+import { headers } from "next/headers";
 import { getMerchantId } from "@/lib/auth-helpers";
 import { supabaseAdmin } from "@/lib/supabase";
 import { ServiceDeskClient } from "./service-desk-client";
+import { getDemoServiceDeskTickets } from "@/lib/demo-server-helpers";
+import { Industry } from "@/lib/demo-data";
 
 export default async function ServiceDeskPage() {
+    const headersList = await headers();
+    const isDemo = headersList.get("x-demo-mode") === "true";
+    const demoIndustry = (headersList.get("x-demo-industry") || "auto") as Industry;
+
+    if (isDemo) {
+        const demoTickets = getDemoServiceDeskTickets(demoIndustry);
+        return (
+            <div className="h-screen overflow-hidden">
+                <ServiceDeskClient initialTickets={demoTickets} merchantId="demo-merchant-id" />
+            </div>
+        );
+    }
+
     const merchantId = await getMerchantId();
 
     // Use the same approach as inbox - use the unified inbox RPC
