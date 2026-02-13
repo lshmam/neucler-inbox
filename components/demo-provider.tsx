@@ -2,13 +2,18 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { ActionItem } from "@/app/(dashboard)/actions/action-client";
-import { DEMO_DATA, getDemoMode, Industry } from "@/lib/demo-data";
+import { DEMO_DATA, getDemoMode, Industry, DashboardStats, TeamMember, QueueItem, ChartDataPoint } from "@/lib/demo-data";
 
 interface DemoContextType {
     industry: Industry;
+    setIndustry: (industry: Industry) => void;
     isDemo: boolean;
     data: {
         actions: ActionItem[];
+        stats?: DashboardStats;
+        team?: TeamMember[];
+        queue?: QueueItem[];
+        chart?: ChartDataPoint[];
     };
 }
 
@@ -21,21 +26,52 @@ export function useDemo() {
 }
 
 export function DemoProvider({ children }: { children: ReactNode }) {
-    const [industry, setIndustry] = useState<Industry>("auto");
+    const [industry, setIndustryState] = useState<Industry>("auto");
     const [mounted, setMounted] = useState(false);
+
+    // Persist to local storage helper
+    const setIndustry = (newIndustry: Industry) => {
+        setIndustryState(newIndustry);
+        localStorage.setItem("demo-industry", newIndustry);
+    };
 
     useEffect(() => {
         const hostname = window.location.hostname;
-        const mode = getDemoMode(hostname);
+        const pathname = window.location.pathname;
+        let mode = getDemoMode(hostname);
 
-        // Allow overriding via query param for testing (e.g. ?demo=dental)
+        // 1. Path overrides Hostname
+        if (pathname.startsWith("/medspa-demo")) {
+            mode = "medspa";
+        } else if (pathname.startsWith("/dental-demo")) {
+            mode = "dental";
+        } else {
+            // 2. LocalStorage
+            // Allow LS override if we are on a demo domain OR if we are on localhost (for dev/testing)
+            const isLocalhost = hostname.includes("localhost");
+            const canOverride = mode !== "real" || isLocalhost;
+
+            if (canOverride) {
+                const stored = localStorage.getItem("demo-industry") as Industry | null;
+                if (stored && DEMO_DATA[stored]) {
+                    mode = stored;
+                } else if (isLocalhost && mode === "real") {
+                    // Force "auto" demo on localhost if no preference is saved
+                    mode = "auto";
+                }
+            }
+        }
+
+        // 3. Query Param Overrides Everything (for testing specific links)
         const params = new URLSearchParams(window.location.search);
         const override = params.get("demo") as Industry | null;
 
         if (override && DEMO_DATA[override]) {
-            setIndustry(override);
+            setIndustryState(override);
+            // If they specifically linked with ?demo=, should we persist it? Yes.
+            localStorage.setItem("demo-industry", override);
         } else {
-            setIndustry(mode);
+            setIndustryState(mode);
         }
         setMounted(true);
     }, []);
@@ -47,7 +83,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     const data = isDemo ? DEMO_DATA[industry] : DEMO_DATA["real"];
 
     return (
-        <DemoContext.Provider value={{ industry, isDemo, data }}>
+        <DemoContext.Provider value={{ industry, setIndustry, isDemo, data }}>
             {children}
         </DemoContext.Provider>
     );

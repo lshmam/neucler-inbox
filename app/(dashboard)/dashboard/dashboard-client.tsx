@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCall, CallCustomer } from "@/components/call-context";
+import { useDemo } from "@/components/demo-provider";
 import {
     Card,
     CardContent,
@@ -92,7 +93,7 @@ const CURRENT_USER = {
     earningsTarget: 150,
 };
 
-const TEAM_MEMBERS = [
+const teamMembers = [
     { id: "1", name: "Sarah M.", avatar: "SM", bookings: 22, calls: 98, rate: 29, earnings: 550, isYou: true },
     { id: "2", name: "Mike R.", avatar: "MR", bookings: 28, calls: 112, rate: 25, earnings: 1120, isYou: false },
     { id: "3", name: "Jessica L.", avatar: "JL", bookings: 18, calls: 85, rate: 21, earnings: 450, isYou: false },
@@ -100,7 +101,7 @@ const TEAM_MEMBERS = [
     { id: "5", name: "Amy T.", avatar: "AT", bookings: 12, calls: 72, rate: 17, earnings: 300, isYou: false },
 ].sort((a, b) => b.bookings - a.bookings);
 
-const CALL_QUEUE = [
+const callQueue = [
     { id: "q1", name: "John Peterson", phone: "+1 604-555-0123", vehicle: "2021 BMW X5", issue: "Brake inspection — quote sent 2 days ago", heat: "hot" as const, lastContact: "2 days ago", value: 850, lastVisit: "Jan 3, 2026", totalSpend: 4200, visits: 8, openDeal: { service: "Brake Inspection & Pad Replacement", value: 850, stage: "Quote Sent" }, notes: "Price-sensitive, prefers morning appointments. Loyal customer since 2022." },
     { id: "q2", name: "Karen Williams", phone: "+1 604-555-0456", vehicle: "2019 Honda CR-V", issue: "Oil change + tire rotation — missed call yesterday", heat: "hot" as const, lastContact: "1 day ago", value: 280, lastVisit: "Dec 15, 2025", totalSpend: 1800, visits: 5, openDeal: { service: "Oil Change + Tire Rotation", value: 280, stage: "New Inquiry" }, notes: "Missed call yesterday at 2:15 PM. Usually books same-day." },
     { id: "q3", name: "Steve Brooks", phone: "+1 604-555-0789", vehicle: "2022 Toyota Camry", issue: "AC not blowing cold — new inquiry", heat: "warm" as const, lastContact: "3 hours ago", value: 0, lastVisit: undefined, totalSpend: 0, visits: 0, notes: "First-time caller. Mentioned they found us on Google." },
@@ -146,14 +147,22 @@ function CircularProgress({ value, max, label, size = 80 }: { value: number; max
 export function DashboardClient({ data }: { data: DashboardData }) {
     const { performance, chartData } = data;
     const { initiateCall } = useCall();
-    const hasPerformanceData = chartData.some(d => d.calls > 0 || d.sms > 0);
 
-    const currentTier = getTier(CURRENT_USER.monthBookings);
-    const nextTier = getNextTier(CURRENT_USER.monthBookings);
+    const { isDemo, data: demoData } = useDemo();
+
+    const currentUser = (isDemo && demoData.stats) ? demoData.stats : CURRENT_USER;
+    const teamMembers = (isDemo && demoData.team) ? demoData.team : teamMembers;
+    const callQueue = (isDemo && demoData.queue) ? demoData.queue : callQueue;
+    const displayChart = (isDemo && demoData.chart) ? demoData.chart : chartData;
+
+    const hasPerformanceData = displayChart.some(d => d.calls > 0 || d.sms > 0);
+
+    const currentTier = getTier(currentUser.monthBookings);
+    const nextTier = getNextTier(currentUser.monthBookings);
     const tierProgress = nextTier
-        ? ((CURRENT_USER.monthBookings - currentTier.min) / (nextTier.min - currentTier.min)) * 100
+        ? ((currentUser.monthBookings - currentTier.min) / (nextTier.min - currentTier.min)) * 100
         : 100;
-    const bookingsToNext = nextTier ? nextTier.min - CURRENT_USER.monthBookings : 0;
+    const bookingsToNext = nextTier ? nextTier.min - currentUser.monthBookings : 0;
 
     const heatConfig = {
         hot: { label: "Hot", bg: "bg-slate-900", text: "text-white" },
@@ -169,7 +178,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                 <div className="flex items-center justify-between mb-8">
                     <div>
                         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                            Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"}, {CURRENT_USER.name}
+                            Good {new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening"}, {currentUser.name}
                         </h1>
                         <p className="text-slate-500 text-sm mt-1">Here is your daily performance snapshot.</p>
                     </div>
@@ -187,8 +196,8 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                             </div>
                         </div>
                         <div className="flex items-baseline gap-2">
-                            <span className="text-3xl font-bold text-slate-900">{CURRENT_USER.todayCalls}</span>
-                            <span className="text-xs text-slate-400">/ {CURRENT_USER.callTarget}</span>
+                            <span className="text-3xl font-bold text-slate-900">{currentUser.todayCalls}</span>
+                            <span className="text-xs text-slate-400">/ {currentUser.callTarget}</span>
                         </div>
                     </div>
 
@@ -200,8 +209,8 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                             </div>
                         </div>
                         <div className="flex items-baseline gap-2">
-                            <span className="text-3xl font-bold text-slate-900">{CURRENT_USER.todayBookings}</span>
-                            <span className="text-xs text-slate-400">/ {CURRENT_USER.bookingTarget}</span>
+                            <span className="text-3xl font-bold text-slate-900">{currentUser.todayBookings}</span>
+                            <span className="text-xs text-slate-400">/ {currentUser.bookingTarget}</span>
                         </div>
                     </div>
 
@@ -213,8 +222,8 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                             </div>
                         </div>
                         <div className="flex items-baseline gap-2">
-                            <span className="text-3xl font-bold text-slate-900">${CURRENT_USER.todayEarnings}</span>
-                            <span className="text-xs text-slate-400">/ ${CURRENT_USER.earningsTarget}</span>
+                            <span className="text-3xl font-bold text-slate-900">${currentUser.todayEarnings}</span>
+                            <span className="text-xs text-slate-400">/ ${currentUser.earningsTarget}</span>
                         </div>
                     </div>
 
@@ -226,7 +235,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                             </div>
                         </div>
                         <div className="flex items-baseline gap-2">
-                            <span className="text-3xl font-bold text-slate-900">{CURRENT_USER.conversionRate}%</span>
+                            <span className="text-3xl font-bold text-slate-900">{currentUser.conversionRate}%</span>
                             <span className="text-xs text-slate-400">rate</span>
                         </div>
                     </div>
@@ -242,8 +251,8 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                         </h3>
                     </div>
                     <div className="flex items-center justify-around">
-                        <CircularProgress value={CURRENT_USER.todayCalls} max={CURRENT_USER.callTarget} label="Calls" />
-                        <CircularProgress value={CURRENT_USER.todayBookings} max={CURRENT_USER.bookingTarget} label="Booked" />
+                        <CircularProgress value={currentUser.todayCalls} max={currentUser.callTarget} label="Calls" />
+                        <CircularProgress value={currentUser.todayBookings} max={currentUser.bookingTarget} label="Booked" />
                     </div>
                 </div>
 
@@ -254,7 +263,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                             <Trophy className="h-4 w-4" /> Commission Tier
                         </h3>
                         <div className="text-right">
-                            <span className="text-2xl font-bold text-slate-900 block">${CURRENT_USER.monthEarnings.toLocaleString()}</span>
+                            <span className="text-2xl font-bold text-slate-900 block">${currentUser.monthEarnings.toLocaleString()}</span>
                             <span className="text-xs text-slate-500">earned this month</span>
                         </div>
                     </div>
@@ -262,7 +271,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                     <div className="mb-6">
                         <div className="flex justify-between items-end mb-2">
                             <div>
-                                <span className="text-3xl font-bold text-slate-900">{CURRENT_USER.monthBookings}</span>
+                                <span className="text-3xl font-bold text-slate-900">{currentUser.monthBookings}</span>
                                 <span className="text-sm text-slate-500 ml-2">bookings</span>
                             </div>
                             {nextTier && (
@@ -311,7 +320,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                     </Button>
                 </div>
                 <div className="divide-y divide-slate-100">
-                    {CALL_QUEUE.map(lead => {
+                    {callQueue.map(lead => {
                         const heat = heatConfig[lead.heat];
                         return (
                             <div key={lead.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors group">
@@ -389,7 +398,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {TEAM_MEMBERS.map((member, idx) => {
+                            {teamMembers.map((member, idx) => {
                                 const rank = idx + 1;
                                 const memberTier = getTier(member.bookings);
                                 const isTop3 = rank <= 3;
@@ -458,7 +467,7 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                     </div>
                 </div>
                 <div className="h-[200px] w-full">
-                    {!hasPerformanceData ? (
+                    {!hasPerformanceData || !mounted ? (
                         <div className="h-full flex items-center justify-center text-slate-400">
                             <div className="text-center">
                                 <LineChart className="h-8 w-8 mx-auto mb-2 opacity-20" />
@@ -466,28 +475,30 @@ export function DashboardClient({ data }: { data: DashboardData }) {
                             </div>
                         </div>
                     ) : (
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                <defs>
-                                    <linearGradient id="colorCalls" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#0f172a" stopOpacity={0.1} />
-                                        <stop offset="95%" stopColor="#0f172a" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                                <Tooltip
-                                    contentStyle={{
-                                        backgroundColor: '#fff',
-                                        border: '1px solid #e2e8f0',
-                                        borderRadius: '8px',
-                                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                                        color: '#0f172a'
-                                    }}
-                                />
-                                <Area type="monotone" dataKey="calls" name="Calls" stroke="#0f172a" strokeWidth={2} fillOpacity={1} fill="url(#colorCalls)" />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                        <div style={{ width: '100%', height: '100%' }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={displayChart} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="colorCalls" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#0f172a" stopOpacity={0.1} />
+                                            <stop offset="95%" stopColor="#0f172a" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                                    <Tooltip
+                                        contentStyle={{
+                                            backgroundColor: '#fff',
+                                            border: '1px solid #e2e8f0',
+                                            borderRadius: '8px',
+                                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                                            color: '#0f172a'
+                                        }}
+                                    />
+                                    <Area type="monotone" dataKey="calls" name="Calls" stroke="#0f172a" strokeWidth={2} fillOpacity={1} fill="url(#colorCalls)" />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
                     )}
                 </div>
             </div>

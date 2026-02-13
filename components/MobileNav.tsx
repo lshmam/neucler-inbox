@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { Sidebar } from "./Sidebar";
+import { DemoSwitcher } from "@/components/demo-switcher";
 
 interface MobileNavProps {
     branding: {

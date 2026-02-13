@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { DemoSwitcher } from "@/components/demo-switcher";
 import {
     LayoutDashboard,
     Headset,
@@ -72,7 +73,8 @@ export function Sidebar({ branding = DEFAULT_BRANDING, onNavigate }: SidebarProp
     const pathname = usePathname();
 
     const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-        "OPERATIONS": true,
+        "YOUR WORKFLOW": true,
+        "GROWTH": true,
         "MANAGEMENT": true,
         "SYSTEM": true
     });
@@ -82,7 +84,7 @@ export function Sidebar({ branding = DEFAULT_BRANDING, onNavigate }: SidebarProp
     };
 
     return (
-        <div className="flex flex-col h-full w-64 bg-slate-50 border-r border-slate-200 text-slate-900 shrink-0">
+        <div className="flex flex-col h-full w-64 bg-slate-50 border-r border-slate-200 text-slate-900 shrink-0 relative z-20">
 
             {/* --- HEADER --- */}
             <div className="min-h-16 flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0 bg-white">
@@ -99,6 +101,9 @@ export function Sidebar({ branding = DEFAULT_BRANDING, onNavigate }: SidebarProp
                     </span>
                 </button>
             </div>
+
+            {/* Demo Mode Switcher */}
+            <DemoSwitcher />
 
             {/* --- SCROLLABLE NAV --- */}
             <div className="flex-1 overflow-y-auto py-4 px-3 flex flex-col
