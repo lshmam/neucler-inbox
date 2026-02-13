@@ -93,7 +93,7 @@ const CURRENT_USER = {
     earningsTarget: 150,
 };
 
-const teamMembers = [
+const MOCK_TEAM_MEMBERS = [
     { id: "1", name: "Sarah M.", avatar: "SM", bookings: 22, calls: 98, rate: 29, earnings: 550, isYou: true },
     { id: "2", name: "Mike R.", avatar: "MR", bookings: 28, calls: 112, rate: 25, earnings: 1120, isYou: false },
     { id: "3", name: "Jessica L.", avatar: "JL", bookings: 18, calls: 85, rate: 21, earnings: 450, isYou: false },
@@ -101,7 +101,7 @@ const teamMembers = [
     { id: "5", name: "Amy T.", avatar: "AT", bookings: 12, calls: 72, rate: 17, earnings: 300, isYou: false },
 ].sort((a, b) => b.bookings - a.bookings);
 
-const callQueue = [
+const MOCK_CALL_QUEUE = [
     { id: "q1", name: "John Peterson", phone: "+1 604-555-0123", vehicle: "2021 BMW X5", issue: "Brake inspection — quote sent 2 days ago", heat: "hot" as const, lastContact: "2 days ago", value: 850, lastVisit: "Jan 3, 2026", totalSpend: 4200, visits: 8, openDeal: { service: "Brake Inspection & Pad Replacement", value: 850, stage: "Quote Sent" }, notes: "Price-sensitive, prefers morning appointments. Loyal customer since 2022." },
     { id: "q2", name: "Karen Williams", phone: "+1 604-555-0456", vehicle: "2019 Honda CR-V", issue: "Oil change + tire rotation — missed call yesterday", heat: "hot" as const, lastContact: "1 day ago", value: 280, lastVisit: "Dec 15, 2025", totalSpend: 1800, visits: 5, openDeal: { service: "Oil Change + Tire Rotation", value: 280, stage: "New Inquiry" }, notes: "Missed call yesterday at 2:15 PM. Usually books same-day." },
     { id: "q3", name: "Steve Brooks", phone: "+1 604-555-0789", vehicle: "2022 Toyota Camry", issue: "AC not blowing cold — new inquiry", heat: "warm" as const, lastContact: "3 hours ago", value: 0, lastVisit: undefined, totalSpend: 0, visits: 0, notes: "First-time caller. Mentioned they found us on Google." },
@@ -147,12 +147,18 @@ function CircularProgress({ value, max, label, size = 80 }: { value: number; max
 export function DashboardClient({ data }: { data: DashboardData }) {
     const { performance, chartData } = data;
     const { initiateCall } = useCall();
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
 
     const { isDemo, data: demoData } = useDemo();
 
     const currentUser = (isDemo && demoData.stats) ? demoData.stats : CURRENT_USER;
-    const teamMembers = (isDemo && demoData.team) ? demoData.team : teamMembers;
-    const callQueue = (isDemo && demoData.queue) ? demoData.queue : callQueue;
+    const teamMembers = (isDemo && demoData.team) ? demoData.team : MOCK_TEAM_MEMBERS;
+    const callQueue = (isDemo && demoData.queue) ? demoData.queue : MOCK_CALL_QUEUE;
     const displayChart = (isDemo && demoData.chart) ? demoData.chart : chartData;
 
     const hasPerformanceData = displayChart.some(d => d.calls > 0 || d.sms > 0);
