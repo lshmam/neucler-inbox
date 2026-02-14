@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react"; // Added useEffect
 import {
     Phone,
     MessageSquare,
@@ -32,6 +32,7 @@ import {
     SearchX
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner"; // Added missing import
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -209,18 +210,26 @@ function ActionCard({ action, onCall, onComplete, onDismiss }: {
 
 
 // ============= MAIN COMPONENT =============
-export function ActionsClient() {
+export function ActionClient({ initialActions }: { initialActions: ActionItem[] }) {
     const { initiateCall } = useCall();
-    const { data, isDemo, industry } = useDemo(); // Use demo context
+    const { data: demoData, isDemo, industry } = useDemo(); // Use demo context
 
-    // Switch between demo data and mock/real data
-    const actionsSource = (isDemo && data?.actions?.length > 0) ? data.actions : MOCK_ACTIONS;
-
+    const [actions, setActions] = useState<ActionItem[]>([]);
     const [activeFilter, setActiveFilter] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
 
+    // Effect to update actions when props or demo data changes
+    useEffect(() => {
+        if (isDemo && demoData?.actions) {
+            setActions(demoData.actions);
+        } else {
+            setActions(initialActions);
+        }
+    }, [isDemo, demoData, initialActions]);
+
     const handleCall = (action: ActionItem) => {
+        toast.info(`Calling ${action.name}...`);
         initiateCall({
             name: action.name,
             phone: action.phone,
@@ -247,7 +256,7 @@ export function ActionsClient() {
     };
 
     // Filter Logic
-    const pendingActions = actionsSource.filter((a: ActionItem) => !completedIds.has(a.id));
+    const pendingActions = actions.filter((a: ActionItem) => !completedIds.has(a.id));
 
     const filteredActions = pendingActions.filter((a: ActionItem) => {
         const matchesFilter = activeFilter === "all" || a.type === activeFilter;

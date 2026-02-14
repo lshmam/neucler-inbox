@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase-client";
+import { useDemo } from "@/components/demo-provider"; // Added import
 import { formatDistanceToNow, format } from "date-fns";
 import {
     Search, Phone, MessageSquare, CheckCircle2, Send, Clock, Loader2, Car,
@@ -1089,10 +1090,32 @@ function ContextPanel({ conversation, isOpen, onClose, onUpdateTicket, onCreateT
 // ============= MAIN COMPONENT =============
 export function ServiceDeskClient({ initialTickets, merchantId }: { initialTickets: Conversation[]; merchantId: string }) {
     // Use only real data - no mock fallback
-    const sortedData = [...initialTickets].sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+    const { isDemo, data: demoData } = useDemo();
 
-    const [conversations, setConversations] = useState<Conversation[]>(sortedData);
-    const [selectedConvo, setSelectedConvo] = useState<Conversation | null>(sortedData[0] || null);
+    // Initialize with props or demo data
+    const [conversations, setConversations] = useState<Conversation[]>([]);
+    const [tickets, setTickets] = useState<TicketInfo[]>([]);
+    const [selectedConvo, setSelectedConvo] = useState<Conversation | null>(null); // Initialize as null
+
+    useEffect(() => {
+        const sortedInitialTickets = [...initialTickets].sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+        if (isDemo && demoData) {
+            // Transform demo actions into conversations if needed, or use specific demo outcomes
+            // For now, let's assume getDemoServiceDeskTickets from server passed initialTickets correctly
+            // If we are strictly client-side demo toggling:
+            setConversations(sortedInitialTickets);
+        } else {
+            setConversations(sortedInitialTickets);
+        }
+    }, [isDemo, demoData, initialTickets]);
+
+    // Set selectedConvo once conversations are loaded
+    useEffect(() => {
+        if (conversations.length > 0 && !selectedConvo) {
+            setSelectedConvo(conversations[0]);
+        }
+    }, [conversations, selectedConvo]);
+
     const [filter, setFilter] = useState<"inbox" | "tickets" | "urgent">("inbox");
     const [searchQuery, setSearchQuery] = useState("");
     const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);

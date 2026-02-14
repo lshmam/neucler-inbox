@@ -27,7 +27,8 @@ import {
     CalendarCheck,
     TrendingUp,
     ArrowUpRight,
-    Search
+    Search,
+    Loader2 // Added missing import
 } from "lucide-react";
 import {
     AreaChart,
@@ -156,10 +157,30 @@ export function DashboardClient({ data }: { data: DashboardData }) {
 
     const { isDemo, data: demoData } = useDemo();
 
-    const currentUser = (isDemo && demoData.stats) ? demoData.stats : CURRENT_USER;
-    const teamMembers = (isDemo && demoData.team) ? demoData.team : MOCK_TEAM_MEMBERS;
-    const callQueue = (isDemo && demoData.queue) ? demoData.queue : MOCK_CALL_QUEUE;
-    const displayChart = (isDemo && demoData.chart) ? demoData.chart : chartData;
+    const realStats = {
+        name: "You",
+        todayCalls: data.performance.calls,
+        todayBookings: data.pipeline.deals, // approximtely using deals as bookings logic
+        todayEarnings: 0, // Not provided in real data yet
+        monthBookings: data.pipeline.customers, // using customers as month metric
+        monthEarnings: 0,
+        conversionRate: 0,
+        callTarget: 20,
+        bookingTarget: 10,
+        earningsTarget: 1000
+    };
+
+    // If real data is provided, use it. Otherwise, rely on DemoContext.
+    // In real mode, DemoContext.data will be empty, so we must handle loading state if data is missing.
+    const currentUser = isDemo ? (demoData.stats || CURRENT_USER) : realStats;
+    const teamMembers = isDemo ? (demoData.team || MOCK_TEAM_MEMBERS) : []; // Real API doesn't return team yet
+    const callQueue = isDemo ? (demoData.queue || MOCK_CALL_QUEUE) : []; // Real API doesn't return queue yet
+    const displayChart = isDemo ? (demoData.chart || []) : chartData;
+
+    // Loading state is critical here to avoid flashing empty/demo content
+    if (!mounted) {
+        return <div className="p-8 flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-slate-400" /></div>;
+    }
 
     const hasPerformanceData = displayChart.some(d => d.calls > 0 || d.sms > 0);
 

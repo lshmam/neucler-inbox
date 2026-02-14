@@ -45,6 +45,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
             mode = "medspa";
         } else if (pathname.startsWith("/dental-demo")) {
             mode = "dental";
+        } else if (hostname === "app.neucler.com") {
+            // CRITICAL: Strict production mode.
+            // Never allow local storage or other overrides to enable demo mode here.
+            mode = "real";
         } else {
             // 2. LocalStorage
             // Allow LS override if we are on a demo domain OR if we are on localhost (for dev/testing)
