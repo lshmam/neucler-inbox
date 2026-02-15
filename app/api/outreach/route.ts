@@ -5,9 +5,8 @@
  * Returns tag groups with customer counts and average spend.
  */
 
-import { supabaseAdmin } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase-server";
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 
 // Icon mapping for common tags (default to Users icon)
 const TAG_ICONS: Record<string, { color: string; bgColor: string; textColor: string }> = {
@@ -24,17 +23,18 @@ const TAG_ICONS: Record<string, { color: string; bgColor: string; textColor: str
 const DEFAULT_STYLE = { color: "from-gray-500 to-slate-600", bgColor: "bg-gray-50", textColor: "text-gray-700" };
 
 export async function GET() {
-    // Use session_merchant_id from cookie (same as broadcast API)
-    const cookieStore = await cookies();
-    const merchantId = cookieStore.get("session_merchant_id")?.value;
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!merchantId) {
+    if (!user) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const merchantId = user.id;
+
     try {
         // Fetch business name for message preview
-        const { data: merchant } = await supabaseAdmin
+        const { data: merchant } = await supabase
             .from("merchants")
             .select("business_name")
             .eq("id", merchantId)
@@ -43,7 +43,7 @@ export async function GET() {
         const businessName = merchant?.business_name || "Your Business";
 
         // Fetch all customers for this merchant
-        const { data: customers, error: customersError } = await supabaseAdmin
+        const { data: customers, error: customersError } = await supabase
             .from("customers")
             .select("id, first_name, last_name, phone_number, email, tags, total_spend_cents, status")
             .eq("merchant_id", merchantId);
@@ -136,11 +136,41 @@ export async function GET() {
         // Sort by count (descending)
         audienceGroups.sort((a, b) => b.count - a.count);
 
+        // Fetch custom segments for this merchant
+        const { data: customSegments } = await supabase
+            .from("customer_segments")
+            .select("id, name, customer_ids")
+            .eq("merchant_id", merchantId)
+            .order("created_at", { ascending: false });
+
+        // Add custom segments to audience groups with distinct styling
+        if (customSegments && customSegments.length > 0) {
+            for (const segment of customSegments) {
+                const customerIds = segment.customer_ids || [];
+
+                // Calculate average spend for customers in this segment
+                const segmentCustomers = customers.filter(c => customerIds.includes(c.id));
+                const totalSpend = segmentCustomers.reduce((sum, c) => sum + (c.total_spend_cents || 0), 0);
+                const avgSpend = segmentCustomers.length > 0 ? Math.round(totalSpend / segmentCustomers.length / 100) : 0;
+
+                audienceGroups.push({
+                    id: `custom_${segment.id}`,
+                    name: segment.name,
+                    count: customerIds.length,
+                    avgValue: avgSpend,
+                    customerIds: customerIds,
+                    color: "from-blue-500 to-indigo-600",
+                    bgColor: "bg-blue-50",
+                    textColor: "text-blue-700",
+                });
+            }
+        }
+
         // Get all unique tags for reference
         const allTags = Object.keys(tagGroups).sort();
 
         // Fetch past campaigns
-        const { data: campaigns } = await supabaseAdmin
+        const { data: campaigns } = await supabase
             .from("sms_campaigns")
             .select("id, name, message_body, audience, recipient_count, status, created_at")
             .eq("merchant_id", merchantId)
@@ -158,7 +188,7 @@ export async function GET() {
         }));
 
         // Fetch automations (workflows) for this merchant
-        const { data: automations } = await supabaseAdmin
+        const { data: automations } = await supabase
             .from("automations")
             .select("id, type, is_active, config")
             .eq("merchant_id", merchantId);
@@ -167,7 +197,7 @@ export async function GET() {
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-        const { data: automationLogs } = await supabaseAdmin
+        const { data: automationLogs } = await supabase
             .from("automation_logs")
             .select("action_type, status, created_at")
             .eq("merchant_id", merchantId)

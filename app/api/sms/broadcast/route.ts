@@ -1,36 +1,42 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { supabaseAdmin } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase-server";
 import { twilioClient } from "@/lib/twilio"; // Ensure this matches your file structure
 
 export async function POST(request: Request) {
-    const cookieStore = await cookies();
-    const merchantId = cookieStore.get("session_merchant_id")?.value;
-    if (!merchantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const merchantId = user.id;
 
     try {
         const { name, audience, message, customerIds, tags } = await request.json();
 
-        // 1. Get Sender Number (From AI Agent Config)
-        const { data: agent } = await supabaseAdmin
+        // 1. Get Sender Number (From AI Agent Config or fallback to env var)
+        const { data: agent } = await supabase
             .from("ai_agents")
             .select("phone_number")
             .eq("merchant_id", merchantId)
             .single();
 
-        if (!agent?.phone_number) {
-            return NextResponse.json({ error: "No SMS number found. Please configure your AI Agent first." }, { status: 400 });
+        const fromNumber = agent?.phone_number || process.env.TWILIO_PHONE_NUMBER;
+
+        if (!fromNumber) {
+            return NextResponse.json({ error: "No SMS number found. Please configure your AI Agent or set TWILIO_PHONE_NUMBER." }, { status: 400 });
         }
 
         // 2. Get Merchant Name (For Prefix)
-        const { data: merchant } = await supabaseAdmin
+        const { data: merchant } = await supabase
             .from("merchants")
             .select("business_name")
-            .eq("platform_merchant_id", merchantId)
+            .eq("id", merchantId)
             .single();
 
         // 3. Fetch Audience - support multiple methods
-        let query = supabaseAdmin
+        let query = supabase
             .from("customers")
             .select("id, phone_number, first_name")
             .eq("merchant_id", merchantId)
@@ -82,12 +88,12 @@ export async function POST(request: Request) {
             try {
                 await twilioClient.messages.create({
                     body: personalizedBody,
-                    from: agent.phone_number,
+                    from: fromNumber,
                     to: c.phone_number
                 });
 
                 // Log to Messages table (So it shows in Inbox)
-                await supabaseAdmin.from("messages").insert({
+                await supabase.from("messages").insert({
                     merchant_id: merchantId,
                     customer_phone: c.phone_number,
                     direction: "outbound",
@@ -112,7 +118,7 @@ export async function POST(request: Request) {
                 ? `${customerIds.length} customers`
                 : audience || "all";
 
-        const { data: campaign, error: insertError } = await supabaseAdmin
+        const { data: campaign, error: insertError } = await supabase
             .from("sms_campaigns")
             .insert({
                 merchant_id: merchantId,

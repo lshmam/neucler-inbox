@@ -166,13 +166,6 @@ export default function OutreachPage() {
 
                 setMessage("");
                 setSelectedBuckets([]);
-
-                // Also refetch in background to sync with server
-                fetch("/api/outreach").then(res => {
-                    if (res.ok) {
-                        res.json().then(updatedData => setData(updatedData));
-                    }
-                });
             } else {
                 toast.error(result.error || "Failed to send broadcast");
             }

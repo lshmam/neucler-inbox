@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from "@/components/ui/table";
@@ -62,7 +62,30 @@ export function CustomersClient({ initialCustomers, merchantId }: CustomersClien
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [showCreateSegmentModal, setShowCreateSegmentModal] = useState(false);
     const [newSegmentName, setNewSegmentName] = useState("");
-    const [customSegments, setCustomSegments] = useState<{ id: string; name: string; customerIds: string[] }[]>([]);
+    const [customSegments, setCustomSegments] = useState<{ id: string; name: string; customerIds: string[]; customer_ids?: string[] }[]>([]);
+    const [isCreatingSegment, setIsCreatingSegment] = useState(false);
+
+    // Fetch custom segments on mount
+    useEffect(() => {
+        const fetchSegments = async () => {
+            try {
+                const res = await fetch("/api/customers/segments");
+                if (!res.ok) throw new Error("Failed to fetch segments");
+                const data = await res.json();
+                // Map database fields to component state format
+                const mappedSegments = (data.segments || []).map((s: any) => ({
+                    id: s.id,
+                    name: s.name,
+                    customerIds: s.customer_ids || [],
+                    customer_ids: s.customer_ids || []
+                }));
+                setCustomSegments(mappedSegments);
+            } catch (error) {
+                console.error("Error fetching segments:", error);
+            }
+        };
+        fetchSegments();
+    }, []);
 
     const FILTERS = [
         { id: "all", label: "All Contacts", icon: Users, count: normalizedCustomers.length },
@@ -131,18 +154,41 @@ export function CustomersClient({ initialCustomers, merchantId }: CustomersClien
         setSelectedIds(newSet);
     };
 
-    const handleCreateSegment = () => {
+    const handleCreateSegment = async () => {
         if (!newSegmentName.trim() || selectedIds.size === 0) return;
-        const newSegment = {
-            id: `custom_${Date.now()}`,
-            name: newSegmentName,
-            customerIds: Array.from(selectedIds)
-        };
-        setCustomSegments(prev => [...prev, newSegment]);
-        setShowCreateSegmentModal(false);
-        setNewSegmentName("");
-        setSelectedIds(new Set());
-        toast.success(`Segment "${newSegmentName}" created with ${selectedIds.size} customers!`);
+
+        setIsCreatingSegment(true);
+        try {
+            const res = await fetch("/api/customers/segments", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: newSegmentName,
+                    customerIds: Array.from(selectedIds)
+                })
+            });
+
+            if (!res.ok) throw new Error("Failed to create segment");
+
+            const data = await res.json();
+            const newSegment = {
+                id: data.segment.id,
+                name: data.segment.name,
+                customerIds: data.segment.customer_ids || [],
+                customer_ids: data.segment.customer_ids || []
+            };
+
+            setCustomSegments(prev => [...prev, newSegment]);
+            setShowCreateSegmentModal(false);
+            setNewSegmentName("");
+            setSelectedIds(new Set());
+            toast.success(`Segment "${newSegmentName}" created with ${selectedIds.size} customers!`);
+        } catch (error) {
+            console.error("Error creating segment:", error);
+            toast.error("Failed to create segment");
+        } finally {
+            setIsCreatingSegment(false);
+        }
     };
 
     // Placeholder for adding a deal - in the customers page context, this might redirect to pipeline or open a modal
@@ -257,13 +303,13 @@ export function CustomersClient({ initialCustomers, merchantId }: CustomersClien
             {/* FULL CONTENT AREA */}
             <div className="flex gap-6 h-full relative items-start">
 
-                {/* Full-page dark overlay when modal is open */}
+                {/* Full-page dark overlay when modal is open - covers entire viewport including nav sidebar */}
                 {showCreateSegmentModal && (
-                    <div className="fixed inset-0 bg-black/70 z-40" onClick={() => setShowCreateSegmentModal(false)} />
+                    <div className="fixed inset-0 bg-black/50 z-40" onClick={() => setShowCreateSegmentModal(false)} style={{ left: 0, right: 0, top: 0, bottom: 0 }} />
                 )}
 
                 {/* SIDEBAR - Premium dark styling logic ported from pipeline */}
-                <div className={`w-64 flex-shrink-0 space-y-6 bg-white rounded-xl p-4 border border-slate-200 shadow-sm transition-all ${showCreateSegmentModal ? "opacity-50 pointer-events-none" : ""}`}>
+                <div className={`w-64 flex-shrink-0 space-y-6 bg-white rounded-xl p-4 border border-slate-200 shadow-sm transition-all z-50 ${showCreateSegmentModal ? "opacity-30 pointer-events-none" : ""}`}>
                     {/* Smart Segments */}
                     <div>
                         <div className="flex items-center justify-between mb-3">
@@ -500,7 +546,7 @@ export function CustomersClient({ initialCustomers, merchantId }: CustomersClien
 
                 {/* CREATE SEGMENT MODAL */}
                 {showCreateSegmentModal && (
-                    <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+                    <div className="fixed inset-0 flex items-center justify-center z-[60] pointer-events-none">
                         <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95 duration-200 pointer-events-auto" onClick={e => e.stopPropagation()}>
                             <div className="flex items-center justify-between mb-6">
                                 <div>
@@ -526,9 +572,9 @@ export function CustomersClient({ initialCustomers, merchantId }: CustomersClien
                                     <Button variant="outline" onClick={() => setShowCreateSegmentModal(false)} className="flex-1 h-11">
                                         Cancel
                                     </Button>
-                                    <Button onClick={handleCreateSegment} disabled={!newSegmentName.trim()} className="flex-1 h-11 bg-slate-900 hover:bg-black">
+                                    <Button onClick={handleCreateSegment} disabled={!newSegmentName.trim() || isCreatingSegment} className="flex-1 h-11 bg-slate-900 hover:bg-black">
                                         <Users className="h-4 w-4 mr-2" />
-                                        Create Segment
+                                        {isCreatingSegment ? "Creating..." : "Create Segment"}
                                     </Button>
                                 </div>
                             </div>
