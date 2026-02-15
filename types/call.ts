@@ -14,7 +14,7 @@ export interface ChecklistItem {
     required: boolean;
 }
 
-export type CallOutcome = 'booked' | 'not_booked' | 'callback' | 'not_a_fit' | 'voicemail';
+export type CallOutcome = 'booked' | 'not_booked' | 'callback' | 'not_a_fit' | 'voicemail' | 'follow_up' | 'not_interested' | 'no_answer';
 
 export type CallStatus = 'active' | 'ending' | 'completed';
 

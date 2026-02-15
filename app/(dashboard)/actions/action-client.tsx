@@ -29,13 +29,15 @@ import {
     Car,
     Filter,
     ArrowUpRight,
-    SearchX
+    SearchX,
+    Plus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner"; // Added missing import
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { createClient } from "@/lib/supabase-client";
 import { useCall } from "@/components/call-context";
 import { useDemo } from "@/components/demo-provider";
 import {
@@ -46,12 +48,30 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 // ============= TYPES =============
 export interface ActionItem {
     id: string;
     name: string;
+    customer_name?: string; // From database actions
     phone: string;
+    customer_phone?: string; // From database actions
     vehicle?: string;
     tags: string[];
     type: "missed_call" | "unbooked_lead" | "cancellation" | "no_show" | "reactivation" | "follow_up";
@@ -148,7 +168,7 @@ function ActionCard({ action, onCall, onComplete, onDismiss }: {
 
                 {/* Content */}
                 <div className="mb-4">
-                    <h3 className="text-lg font-bold text-slate-900 mb-1 leading-tight">{action.name}</h3>
+                    <h3 className="text-lg font-bold text-slate-900 mb-1 leading-tight">{action.customer_name || action.name || 'Unknown'}</h3>
                     <p className="text-sm text-slate-600 mb-3">{action.reason}</p>
 
                     <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 mb-3">
@@ -209,27 +229,170 @@ function ActionCard({ action, onCall, onComplete, onDismiss }: {
 }
 
 
+
 // ============= MAIN COMPONENT =============
 export function ActionClient({ initialActions }: { initialActions: ActionItem[] }) {
     const { initiateCall } = useCall();
     const { data: demoData, isDemo, industry } = useDemo(); // Use demo context
+    const supabase = createClient();
 
     const [actions, setActions] = useState<ActionItem[]>([]);
     const [activeFilter, setActiveFilter] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
 
-    // Effect to update actions when props or demo data changes
-    useEffect(() => {
-        if (isDemo && demoData?.actions) {
-            setActions(demoData.actions);
-        } else {
-            setActions(initialActions);
+    // Create Action State
+    const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [newAction, setNewAction] = useState({
+        title: "",
+        description: "",
+        customerName: "",
+        customerPhone: "",
+        priority: "medium",
+        type: "follow_up"
+    });
+
+    // Customer Autocomplete State
+    const [customerSearch, setCustomerSearch] = useState("");
+    const [customerSuggestions, setCustomerSuggestions] = useState<any[]>([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+
+    const fetchActions = async () => {
+        const baseActions = (isDemo && demoData?.actions) ? demoData.actions : initialActions;
+
+        try {
+            // Fetch real actions from API (which handles the joins)
+            const res = await fetch("/api/actions");
+            if (!res.ok) throw new Error("Failed to fetch actions");
+
+            const actionsData = await res.json();
+
+            let dbActions: ActionItem[] = [];
+            if (actionsData) {
+                dbActions = actionsData.map((a: any) => {
+                    const cRaw = a.customers;
+                    const c = Array.isArray(cRaw) ? cRaw[0] || {} : cRaw || {};
+                    // Calculate time ago roughly
+                    const diffMs = new Date().getTime() - new Date(a.created_at).getTime();
+                    const diffMins = Math.floor(diffMs / 60000);
+                    const timeAgo = diffMins < 60 ? `${diffMins} min ago` : `${Math.floor(diffMins / 60)} hours ago`;
+
+                    return {
+                        id: a.id,
+                        name: `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Unknown',
+                        customer_name: a.customer_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Unknown',
+                        phone: c.phone_number || '',
+                        customer_phone: a.customer_phone || c.phone_number || '',
+                        vehicle: `${c.vehicle_year || ''} ${c.vehicle_make || ''} ${c.vehicle_model || ''}`.trim(),
+                        tags: ['Live'],
+                        type: (a.type as any) || 'follow_up',
+                        priority: (a.priority as any) || 'medium',
+                        reason: a.title,
+                        context: a.description,
+                        value: 0,
+                        timeAgo: timeAgo,
+                        customerData: {
+                            notes: a.description
+                        }
+                    };
+                });
+            }
+
+            // Merge: Real actions first, then mock/initial actions
+            setActions([...dbActions, ...baseActions]);
+
+        } catch (e) {
+            console.error("Error fetching actions:", e);
+            setActions(baseActions);
         }
-    }, [isDemo, demoData, initialActions]);
+    };
+
+    useEffect(() => {
+        fetchActions();
+    }, [isDemo, demoData, initialActions, supabase]);
+
+    // Search customers as user types
+    const searchCustomers = async (query: string) => {
+        if (!query || query.length < 2) {
+            setCustomerSuggestions([]);
+            setShowSuggestions(false);
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/customers');
+            if (!res.ok) throw new Error('Failed to fetch customers');
+
+            const customers = await res.json();
+
+            // Filter customers by name or phone
+            const filtered = customers.filter((c: any) => {
+                const fullName = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
+                const phone = c.phone_number || '';
+                const searchLower = query.toLowerCase();
+
+                return fullName.includes(searchLower) || phone.includes(searchLower);
+            }).slice(0, 5); // Limit to 5 suggestions
+
+            setCustomerSuggestions(filtered);
+            setShowSuggestions(filtered.length > 0);
+        } catch (e) {
+            console.error('Failed to search customers:', e);
+        }
+    };
+
+    const handleCreateAction = async () => {
+        if (!newAction.title || !newAction.customerName) {
+            toast.error("Please fill in required fields");
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const res = await fetch('/api/actions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: newAction.title,
+                    description: newAction.description,
+                    customer_name: newAction.customerName,
+                    customer_phone: newAction.customerPhone,
+                    priority: newAction.priority,
+                    type: newAction.type,
+                    status: 'open'
+                })
+            });
+
+            if (!res.ok) throw new Error(await res.text());
+
+            toast.success("Action created successfully");
+            setIsCreateOpen(false);
+            setNewAction({
+                title: "",
+                description: "",
+                customerName: "",
+                customerPhone: "",
+                priority: "medium",
+                type: "follow_up"
+            });
+            // Reset customer search state
+            setCustomerSearch("");
+            setCustomerSuggestions([]);
+            setShowSuggestions(false);
+            setSelectedCustomerId(null);
+            fetchActions(); // Refresh list
+        } catch (e) {
+            console.error("Failed to create action", e);
+            toast.error("Failed to create action");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
 
     const handleCall = (action: ActionItem) => {
-        toast.info(`Calling ${action.name}...`);
+        // toast.info(`Calling ${action.name}...`);
         initiateCall({
             name: action.name,
             phone: action.phone,
@@ -291,6 +454,9 @@ export function ActionClient({ initialActions }: { initialActions: ActionItem[] 
                     <p className="text-xs text-slate-500 mt-2">
                         {totalCount} pending tasks requiring your attention.
                     </p>
+                    <Button onClick={() => setIsCreateOpen(true)} className="w-full mt-4 bg-slate-900 text-white hover:bg-slate-800">
+                        <Plus className="h-4 w-4 mr-2" /> Create Action
+                    </Button>
                 </div>
 
                 <ScrollArea className="flex-1 px-4">
@@ -384,6 +550,157 @@ export function ActionClient({ initialActions }: { initialActions: ActionItem[] 
                     </div>
                 </div>
             </div>
+
+            {/* Create Action Modal */}
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Create New Action</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="title">Action Title</Label>
+                            <Input
+                                id="title"
+                                value={newAction.title}
+                                onChange={(e) => setNewAction({ ...newAction, title: e.target.value })}
+                                placeholder="E.g. Call back about tires"
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="name">Customer Name</Label>
+                            <div className="relative">
+                                <Input
+                                    id="name"
+                                    value={customerSearch}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        setCustomerSearch(value);
+                                        setNewAction({ ...newAction, customerName: value });
+                                        searchCustomers(value);
+                                    }}
+                                    onFocus={() => {
+                                        if (customerSuggestions.length > 0) {
+                                            setShowSuggestions(true);
+                                        }
+                                    }}
+                                    placeholder="Start typing to search..."
+                                    autoComplete="off"
+                                />
+
+                                {/* Autocomplete Dropdown */}
+                                {showSuggestions && customerSuggestions.length > 0 && (
+                                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-auto">
+                                        {customerSuggestions.map((customer) => (
+                                            <button
+                                                key={customer.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    const fullName = `${customer.first_name || ''} ${customer.last_name || ''}`.trim();
+                                                    setCustomerSearch(fullName);
+                                                    setNewAction({
+                                                        ...newAction,
+                                                        customerName: fullName,
+                                                        customerPhone: customer.phone_number || ''
+                                                    });
+                                                    setSelectedCustomerId(customer.id);
+                                                    setShowSuggestions(false);
+                                                }}
+                                                className="w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
+                                            >
+                                                <div className="font-medium text-slate-900">
+                                                    {customer.first_name} {customer.last_name}
+                                                </div>
+                                                <div className="text-sm text-slate-500">
+                                                    {customer.phone_number}
+                                                </div>
+                                            </button>
+                                        ))}
+                                        <div className="px-4 py-2 bg-slate-50 border-t border-slate-200">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setShowSuggestions(false);
+                                                    setSelectedCustomerId(null);
+                                                }}
+                                                className="text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
+                                            >
+                                                <Plus className="h-3 w-3" />
+                                                Create new customer "{customerSearch}"
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            {selectedCustomerId && (
+                                <p className="text-xs text-emerald-600 flex items-center gap-1">
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Existing customer selected
+                                </p>
+                            )}
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="phone">Phone Number</Label>
+                            <Input
+                                id="phone"
+                                value={newAction.customerPhone}
+                                onChange={(e) => setNewAction({ ...newAction, customerPhone: e.target.value })}
+                                placeholder="+1 (555) 000-0000"
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="priority">Priority</Label>
+                                <Select
+                                    value={newAction.priority}
+                                    onValueChange={(val) => setNewAction({ ...newAction, priority: val })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="low">Low</SelectItem>
+                                        <SelectItem value="medium">Medium</SelectItem>
+                                        <SelectItem value="high">High</SelectItem>
+                                        <SelectItem value="urgent">Urgent</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="type">Type</Label>
+                                <Select
+                                    value={newAction.type}
+                                    onValueChange={(val) => setNewAction({ ...newAction, type: val as any })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="follow_up">Follow Up</SelectItem>
+                                        <SelectItem value="missed_call">Missed Call</SelectItem>
+                                        <SelectItem value="unbooked_lead">Unbooked Lead</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="desc">Notes / Context</Label>
+                            <Textarea
+                                id="desc"
+                                value={newAction.description}
+                                onChange={(e) => setNewAction({ ...newAction, description: e.target.value })}
+                                placeholder="Any additional details..."
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
+                        <Button onClick={handleCreateAction} disabled={isSubmitting}>
+                            {isSubmitting ? "Creating..." : "Create Action"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

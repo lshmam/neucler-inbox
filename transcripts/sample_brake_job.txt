@@ -1,0 +1,13 @@
+Agent: Thanks for calling Neucler Auto, this is James.
+Customer: Hi, I'm looking to get a quote for a timing belt replacement on my 2018 Subaru Outback.
+Agent: I can certainly help with that. Have you been to our shop before?
+Customer: No, this would be my first time.
+Agent: Welcome! Let me just get your full name and phone number to start a file.
+Customer: Sure, it's Sarah Connor, 555-0199.
+Agent: Thanks Sarah. For the 2018 Outback, the timing belt package usually runs about $850, which includes the water pump and tensioners. Is the car currently running okay?
+Customer: Yeah it runs fine, just hit 100k miles so I know it's due.
+Agent: Smart to get ahead of it. We have openings this Thursday or Friday morning.
+Customer: Friday morning works best for me.
+Agent: Great, I'll put you down for Friday at 8 AM. We'll need about 5-6 hours.
+Customer: Perfect, thanks James.
+Agent: You're welcome, see you Friday!

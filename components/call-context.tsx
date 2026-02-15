@@ -1,6 +1,9 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+import { CallOutcome } from "@/types/call";
 
 // ============= TYPES =============
 export type CallState = "idle" | "pre-call" | "ringing" | "connected" | "ended";
@@ -29,7 +32,7 @@ export interface ActiveCall {
     customer: CallCustomer;
     startedAt?: number; // timestamp when connected
     duration: number; // seconds
-    outcome?: "booked" | "follow_up" | "not_interested" | "no_answer";
+    outcome?: CallOutcome;
     postCallNotes?: string;
 }
 
@@ -56,6 +59,14 @@ export function useCall() {
 export function CallProvider({ children }: { children: React.ReactNode }) {
     const [activeCall, setActiveCall] = useState<ActiveCall | null>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const router = useRouter();
+
+    const activeCallRef = useRef<ActiveCall | null>(null);
+
+    // Keep ref in sync
+    useEffect(() => {
+        activeCallRef.current = activeCall;
+    }, [activeCall]);
 
     // Timer for call duration
     useEffect(() => {
@@ -86,31 +97,60 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             duration: 0,
         };
         setActiveCall(call);
-    }, []);
+        // Redirect to full call page
+        router.push("/call");
+    }, [router]);
 
-    const startCall = useCallback(() => {
-        console.log("Starting call...");
-        setActiveCall(prev => {
-            if (!prev || prev.state !== "pre-call") {
-                console.warn("Cannot start call - invalid state:", prev?.state);
-                return prev;
+    const startCall = useCallback(async () => {
+        const currentCall = activeCallRef.current;
+        if (!currentCall || currentCall.state !== "pre-call") {
+            console.warn("Cannot start call - nothing in pre-call state");
+            return;
+        }
+
+        console.log("Starting call...", currentCall.customer.name);
+
+        // Optimistic UI update
+        setActiveCall(prev => prev ? { ...prev, state: "ringing" } : null);
+
+        try {
+            // Persist to DB
+            const res = await fetch('/api/calls/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    customer: currentCall.customer,
+                    direction: currentCall.direction
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                console.log("✅ Call persisted with ID:", data.callId);
+
+                // Update with Real ID
+                setActiveCall(prev => prev ? { ...prev, id: data.callId } : null);
+            } else {
+                console.error("Failed to persist call:", await res.text());
             }
 
-            // Start ringing
-            // Auto-connect after 2s for outbound (simulating pickup)
-            setTimeout(() => {
-                setActiveCall(current => {
-                    if (current && current.state === "ringing") {
-                        console.log("Call connected!");
-                        return { ...current, state: "connected", startedAt: Date.now() };
-                    }
-                    return current;
-                });
-            }, 2000);
+        } catch (e) {
+            console.error("Error starting call:", e);
+        }
 
-            return { ...prev, state: "ringing" };
-        });
+        // Auto-connect after 2s for outbound (simulating pickup)
+        setTimeout(() => {
+            setActiveCall(current => {
+                if (current && current.state === "ringing") {
+                    console.log("Call connected!");
+                    return { ...current, state: "connected", startedAt: Date.now() };
+                }
+                return current;
+            });
+        }, 3000);
+
     }, []);
+
 
     const simulateIncoming = useCallback((customer: CallCustomer) => {
         initiateCall(customer, "inbound");

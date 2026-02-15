@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+
 import { MobileNav } from "@/components/MobileNav";
 import { Sidebar } from "@/components/Sidebar";
 import { KnowledgeBaseSidebar } from "@/components/knowledge-base/KnowledgeBaseSidebar";
 import { CallProvider } from "@/components/call-context";
-import { CallPanel } from "@/components/call-panel";
+
 import { DemoProvider } from "@/components/demo-provider";
 import { BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,8 @@ interface DashboardShellProps {
 
 export function DashboardShell({ branding, children, knowledgeBaseArticles = [], hideDemoToggle = false }: DashboardShellProps) {
     const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
+
+
 
     // Keyboard shortcut: Ctrl+K to toggle KB sidebar
     useEffect(() => {
@@ -59,8 +62,7 @@ export function DashboardShell({ branding, children, knowledgeBaseArticles = [],
                         {children}
                     </main>
 
-                    {/* Floating Call Panel */}
-                    <CallPanel />
+
 
                     {/* Knowledge Base Toggle Button - Hidden on mobile */}
                     <button

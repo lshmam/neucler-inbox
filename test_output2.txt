@@ -1,0 +1,55 @@
+﻿Starting test script...
+Loading env from: C:\Users\ishma\Desktop\FrontEndDev\neucler-cng\neucler-dash\.env.local
+[dotenv@17.2.3] injecting env (23) from .env.local -- tip: ΓÜÖ∩╕Å  enable debug logging with { debug: true }
+Env loaded. Key length: 39
+Running Call Analysis Test...
+node.exe : 
+[CallAnalysis] 
+Analysis failed: 
+[GoogleGenerativeAI 
+Error]: Error 
+fetching from https:/
+/generativelanguage.g
+oogleapis.com/v1beta/
+models/gemini-2.0-fla
+sh:generateContent: 
+[403 Forbidden] 
+Method doesn't allow 
+unregistered callers 
+(callers without 
+established 
+identity). Please 
+use API Key or other 
+form of API consumer 
+identity to call 
+this API.
+At C:\Program Files\n
+odejs\npx.ps1:29 
+char:3
++   & $NODE_EXE 
+$NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: ([CallAn   
+ alysis] ... call    
+ this API.:Strin    
+g) [], RemoteExc    
+eption
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+
+Γ£à Analysis Result:
+{
+  "rating": 0,
+  "summary": "Failed to analyze call.",
+  "nextActions": [],
+  "tags": [],
+  "customerInfo": {
+    "confidence": "low"
+  },
+  "confidence": "low"
+}

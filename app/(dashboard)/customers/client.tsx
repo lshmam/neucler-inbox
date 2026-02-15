@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import {
-    Search, Users, Upload, X, Plus, Crown, Truck, Hash, Car, Check, ChevronRight
+    Search, Users, Upload, X, Plus, Crown, Truck, Hash, Car, Check, ChevronRight, Send
 } from "lucide-react";
 
 // ============= TYPES =============
@@ -71,7 +71,25 @@ export function CustomersClient({ initialCustomers, merchantId }: CustomersClien
         { id: "inactive", label: "Inactive (>1yr)", icon: Users, count: normalizedCustomers.filter(c => new Date(c.lastVisit).getTime() < new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).getTime()).length },
     ];
 
-    const TAGS = ["WinterTires", "AudiClub", "SubaruFan"];
+    // Dynamic Tags
+    const allTags = Array.from(new Set(normalizedCustomers.flatMap(c => c.tags)));
+
+    // Create Customer State
+    const [showCreateCustomerModal, setShowCreateCustomerModal] = useState(false);
+    const [newCustomer, setNewCustomer] = useState({
+        first_name: "",
+        last_name: "",
+        phone: "",
+        email: "",
+        notes: ""
+    });
+    const [isCreating, setIsCreating] = useState(false);
+
+    // Tag Management State
+    const [newTagInput, setNewTagInput] = useState("");
+    const [isAddingTag, setIsAddingTag] = useState(false);
+
+
 
     const filteredCustomers = normalizedCustomers.filter(c => {
         if (searchQuery) {
@@ -88,7 +106,13 @@ export function CustomersClient({ initialCustomers, merchantId }: CustomersClien
             case "vip": return c.isVip;
             case "fleet": return c.isFleet;
             case "inactive": return new Date(c.lastVisit).getTime() < new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).getTime();
-            default: return true;
+            default:
+                // Check if it's a tag
+                if (activeFilter.startsWith("tag_")) {
+                    const tag = activeFilter.replace("tag_", "");
+                    return c.tags.includes(tag);
+                }
+                return true;
         }
     });
 
@@ -134,15 +158,101 @@ export function CustomersClient({ initialCustomers, merchantId }: CustomersClien
         setSelectedIds(new Set());
     };
 
+    const handleCreateCustomer = async () => {
+        if (!newCustomer.first_name || !newCustomer.phone) {
+            toast.error("Name and Phone are required");
+            return;
+        }
+
+        setIsCreating(true);
+        try {
+            const res = await fetch("/api/customers", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(newCustomer)
+            });
+
+            if (!res.ok) throw new Error("Failed to create customer");
+
+            toast.success("Customer created successfully");
+            setShowCreateCustomerModal(false);
+            setNewCustomer({
+                first_name: "",
+                last_name: "",
+                phone: "",
+                email: "",
+                notes: ""
+            });
+            // Ideally trigger a re-fetch here. For now we might need to rely on router.refresh() 
+            // but since we don't have it imported, let's just show success. 
+            // In a real app we'd call a refresh function passed as prop or use router.
+            window.location.reload();
+        } catch (error) {
+            toast.error("Failed to create customer");
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
+    const handleAddTag = async (customerId: string) => {
+        if (!newTagInput.trim()) return;
+        setIsAddingTag(true);
+        try {
+            const res = await fetch(`/api/customers/${customerId}/tags`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ tag: newTagInput.trim() })
+            });
+
+            if (!res.ok) throw new Error("Failed to add tag");
+
+            toast.success("Tag added");
+            setNewTagInput("");
+
+            // Optimistic update (or reload)
+            if (selectedCustomer) {
+                setSelectedCustomer({
+                    ...selectedCustomer,
+                    tags: [...selectedCustomer.tags, newTagInput.trim()]
+                });
+                // Also update the list if needed, or just reload
+                window.location.reload();
+            }
+        } catch (error) {
+            toast.error("Failed to add tag");
+        } finally {
+            setIsAddingTag(false);
+        }
+    };
+
+    const handleRemoveTag = async (customerId: string, tag: string) => {
+        try {
+            const res = await fetch(`/api/customers/${customerId}/tags`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ tag })
+            });
+
+            if (!res.ok) throw new Error("Failed to remove tag");
+
+            toast.success("Tag removed");
+
+            // Optimistic update
+            if (selectedCustomer) {
+                setSelectedCustomer({
+                    ...selectedCustomer,
+                    tags: selectedCustomer.tags.filter(t => t !== tag)
+                });
+                window.location.reload();
+            }
+        } catch (error) {
+            toast.error("Failed to remove tag");
+        }
+    };
+
     return (
         <div className="flex-1 p-8 pt-6 h-full flex flex-col min-h-screen bg-gray-50/50">
-            {/* HEADING */}
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Customers</h1>
-                    <p className="text-sm text-muted-foreground">Manage your customer database and segments.</p>
-                </div>
-            </div>
+
 
             {/* FULL CONTENT AREA */}
             <div className="flex gap-6 h-full relative items-start">
@@ -220,12 +330,18 @@ export function CustomersClient({ initialCustomers, merchantId }: CustomersClien
                             <div className="flex-1 h-px bg-slate-200" />
                         </div>
                         <div className="flex flex-wrap gap-2">
-                            {TAGS.map(tag => (
-                                <Badge key={tag} variant="outline" className="cursor-pointer hover:bg-slate-100 transition-all py-1.5 px-2.5">
-                                    <Hash className="h-3 w-3 mr-1 text-slate-400" />
+                            {allTags.map(tag => (
+                                <Badge
+                                    key={tag}
+                                    variant={activeFilter === `tag_${tag}` ? "secondary" : "outline"}
+                                    onClick={() => setActiveFilter(activeFilter === `tag_${tag}` ? "all" : `tag_${tag}`)}
+                                    className={`cursor-pointer transition-all py-1.5 px-2.5 ${activeFilter === `tag_${tag}` ? "bg-slate-900 text-white" : "hover:bg-slate-100"}`}
+                                >
+                                    <Hash className="h-3 w-3 mr-1 opacity-50" />
                                     {tag}
                                 </Badge>
                             ))}
+                            {allTags.length === 0 && <span className="text-xs text-slate-400 italic">No tags found</span>}
                         </div>
                     </div>
 
@@ -253,6 +369,10 @@ export function CustomersClient({ initialCustomers, merchantId }: CustomersClien
                         <Button onClick={() => setShowImportModal(true)} className="h-11 bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
                             <Upload className="h-4 w-4 mr-2" />
                             Import CSV
+                        </Button>
+                        <Button onClick={() => setShowCreateCustomerModal(true)} className="h-11 bg-slate-900 hover:bg-black text-white shadow-sm">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Customer
                         </Button>
                     </div>
 
@@ -339,7 +459,7 @@ export function CustomersClient({ initialCustomers, merchantId }: CustomersClien
                                                     {customer.tags.length > 0 && (
                                                         <div className="flex gap-1 mt-1.5">
                                                             {customer.tags.map(t => (
-                                                                <span key={t} className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                                                <span key={t} className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded flex items-center">
                                                                     #{t}
                                                                 </span>
                                                             ))}
@@ -431,6 +551,35 @@ export function CustomersClient({ initialCustomers, merchantId }: CustomersClien
                                 <p className="text-sm font-medium text-slate-900">{selectedCustomer.phone}</p>
                                 <p className="text-sm text-slate-600">{selectedCustomer.email}</p>
                             </div>
+
+                            {/* Tags Information */}
+                            <div>
+                                <p className="text-xs text-slate-500 uppercase font-semibold mb-2">Tags</p>
+                                <div className="flex flex-wrap gap-2 mb-2">
+                                    {selectedCustomer.tags.map(tag => (
+                                        <Badge key={tag} variant="secondary" className="px-2 py-1 flex items-center gap-1">
+                                            {tag}
+                                            <X
+                                                className="h-3 w-3 cursor-pointer hover:text-red-500"
+                                                onClick={(e) => { e.stopPropagation(); handleRemoveTag(selectedCustomer.id, tag); }}
+                                            />
+                                        </Badge>
+                                    ))}
+                                </div>
+                                <div className="flex gap-2">
+                                    <Input
+                                        value={newTagInput}
+                                        onChange={(e) => setNewTagInput(e.target.value)}
+                                        placeholder="Add tag..."
+                                        className="h-8 text-xs"
+                                        onKeyDown={(e) => { if (e.key === 'Enter') handleAddTag(selectedCustomer.id); }}
+                                    />
+                                    <Button size="sm" variant="outline" className="h-8" onClick={() => handleAddTag(selectedCustomer.id)} disabled={isAddingTag}>
+                                        <Send className="h-3 w-3" />
+                                    </Button>
+                                </div>
+                            </div>
+
                             <div className="bg-slate-50 p-3 rounded-lg">
                                 <p className="text-xs text-slate-500 uppercase font-semibold mb-2">Vehicles</p>
                                 {selectedCustomer.vehicles.length === 0 ? <p className="text-sm text-slate-400">No vehicles</p> :
@@ -535,7 +684,78 @@ export function CustomersClient({ initialCustomers, merchantId }: CustomersClien
                         </div>
                     </div>
                 )}
+
+                {/* CREATE CUSTOMER MODAL */}
+                {showCreateCustomerModal && (
+                    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100]" onClick={() => setShowCreateCustomerModal(false)}>
+                        <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-xl font-bold">Add New Customer</h3>
+                                <Button variant="ghost" size="sm" onClick={() => setShowCreateCustomerModal(false)}>
+                                    <X className="h-4 w-4" />
+                                </Button>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="col-span-1">
+                                    <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">First Name</label>
+                                    <Input
+                                        value={newCustomer.first_name}
+                                        onChange={e => setNewCustomer({ ...newCustomer, first_name: e.target.value })}
+                                        className="bg-slate-50"
+                                    />
+                                </div>
+                                <div className="col-span-1">
+                                    <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Last Name</label>
+                                    <Input
+                                        value={newCustomer.last_name}
+                                        onChange={e => setNewCustomer({ ...newCustomer, last_name: e.target.value })}
+                                        className="bg-slate-50"
+                                    />
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Phone Number *</label>
+                                    <Input
+                                        value={newCustomer.phone}
+                                        onChange={e => setNewCustomer({ ...newCustomer, phone: e.target.value })}
+                                        className="bg-slate-50"
+                                        placeholder="(555) 123-4567"
+                                    />
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Email</label>
+                                    <Input
+                                        value={newCustomer.email}
+                                        onChange={e => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                                        className="bg-slate-50"
+                                    />
+                                </div>
+                                <div className="col-span-2">
+                                    <div className="h-px bg-slate-200 my-2" />
+                                    <label className="text-xs font-bold text-slate-900 mb-2 block">Additional Information</label>
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="text-xs font-semibold text-slate-500 uppercase mb-1 block">Notes / Medical History</label>
+                                    <textarea
+                                        value={newCustomer.notes}
+                                        onChange={e => setNewCustomer({ ...newCustomer, notes: e.target.value })}
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-md p-2 text-sm min-h-[100px]"
+                                        placeholder="Enter any relevant notes, allergies, or treatment history..."
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-3 mt-8">
+                                <Button variant="ghost" onClick={() => setShowCreateCustomerModal(false)}>Cancel</Button>
+                                <Button onClick={handleCreateCustomer} disabled={isCreating} className="bg-slate-900 text-white hover:bg-black">
+                                    {isCreating ? "Saving..." : "Create Customer"}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
+
         </div>
     );
 }

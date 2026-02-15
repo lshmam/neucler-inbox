@@ -109,17 +109,58 @@ export async function POST(request: Request) {
             description,
             priority = "medium",
             category,
-            customer_id,
+            // customer_id, // We'll resolve this
             assigned_to,
             source = "manual",
             source_message_id,
             tags = [],
-            due_date
+            due_date,
+
+            // New fields for quick creation
+            customer_phone,
+            customer_name
         } = body;
+
+        let { customer_id } = body;
 
         if (!title) {
             return NextResponse.json({ error: "Title is required" }, { status: 400 });
         }
+
+        // Resolve Customer if not provided
+        if (!customer_id && customer_phone) {
+            const { data: existingCustomer } = await supabase
+                .from("customers")
+                .select("id")
+                .eq("merchant_id", merchantId)
+                .eq("phone_number", customer_phone)
+                .single();
+
+            if (existingCustomer) {
+                customer_id = existingCustomer.id;
+            } else if (customer_name) {
+                // Create new customer
+                const { data: newCustomer, error: createError } = await supabase
+                    .from("customers")
+                    .insert({
+                        merchant_id: merchantId,
+                        phone_number: customer_phone,
+                        first_name: customer_name.split(' ')[0],
+                        last_name: customer_name.split(' ').slice(1).join(' ') || '',
+                        source: 'manual_action',
+                        status: 'active'
+                    })
+                    .select()
+                    .single();
+
+                if (newCustomer) {
+                    customer_id = newCustomer.id;
+                } else {
+                    console.error("Failed to create customer for ticket:", createError);
+                }
+            }
+        }
+
 
         // Insert ticket
         const { data: ticket, error } = await supabase
