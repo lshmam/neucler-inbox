@@ -36,10 +36,21 @@ function formatDuration(seconds: number) {
 }
 
 export function CallPanel() {
-    const { activeCall, startCall, answerCall, endCall, setOutcome, setPostCallNotes, dismissCall } = useCall();
+    const {
+        activeCall,
+        startCall,
+        answerCall,
+        endCall,
+        setOutcome,
+        setPostCallNotes,
+        dismissCall,
+        toggleMute,
+        isMuted,
+        deviceReady
+    } = useCall();
     const [isMinimized, setIsMinimized] = useState(false);
     const [notes, setNotes] = useState("");
-    const [isMuted, setIsMuted] = useState(false);
+    // Removed local isMuted state
     const previousCallIdRef = useRef<string | null>(null);
 
     // Sync notes from context if re-opening or minimized
@@ -70,8 +81,8 @@ export function CallPanel() {
         return (
             <div className="fixed bottom-0 left-0 right-0 md:left-64 z-[100]">
                 <div className={`mx-4 mb-4 rounded-xl shadow-2xl border px-4 py-3 flex items-center justify-between ${state === "ringing" ? "bg-green-600 text-white border-green-500 animate-pulse" :
-                        state === "connected" ? "bg-slate-900 text-white border-slate-700" :
-                            "bg-white text-slate-900 border-slate-200"
+                    state === "connected" ? "bg-slate-900 text-white border-slate-700" :
+                        "bg-white text-slate-900 border-slate-200"
                     }`}>
                     <div className="flex items-center gap-3">
                         <div className={`h-3 w-3 rounded-full ${state === "connected" ? "bg-green-400 animate-pulse" : state === "ringing" ? "bg-white animate-pulse" : "bg-slate-400"}`} />
@@ -107,10 +118,10 @@ export function CallPanel() {
 
                 {/* ─── Header ─── */}
                 <div className={`px-5 py-4 flex items-center justify-between shrink-0 ${state === "ringing" ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white" :
-                        state === "connected" ? "bg-gradient-to-r from-slate-900 to-slate-800 text-white" :
-                            state === "pre-call" ? "bg-slate-50 border-b border-slate-200 text-slate-900" :
-                                state === "ended" ? "bg-gradient-to-r from-slate-100 to-slate-50 text-slate-900" :
-                                    "bg-white text-slate-900"
+                    state === "connected" ? "bg-gradient-to-r from-slate-900 to-slate-800 text-white" :
+                        state === "pre-call" ? "bg-slate-50 border-b border-slate-200 text-slate-900" :
+                            state === "ended" ? "bg-gradient-to-r from-slate-100 to-slate-50 text-slate-900" :
+                                "bg-white text-slate-900"
                     }`}>
                     <div className="flex items-center gap-3">
                         {state === "ringing" && (
@@ -207,8 +218,12 @@ export function CallPanel() {
 
                         {/* 4. Action */}
                         <div className="pt-2">
-                            <Button onClick={startCall} className="w-full h-12 text-base shadow-lg shadow-blue-900/10 bg-slate-900 hover:bg-slate-800">
-                                <Phone className="h-4 w-4 mr-2" /> Start Call
+                            <Button
+                                onClick={startCall}
+                                disabled={!deviceReady}
+                                className="w-full h-12 text-base shadow-lg shadow-blue-900/10 bg-slate-900 hover:bg-slate-800 disabled:opacity-50"
+                            >
+                                <Phone className="h-4 w-4 mr-2" /> {deviceReady ? "Start Call" : "Connecting..."}
                             </Button>
                         </div>
                     </div>
@@ -238,11 +253,11 @@ export function CallPanel() {
                             <>
                                 {/* In-Call Actions */}
                                 <div className="grid grid-cols-4 gap-2 mb-6">
-                                    <button onClick={() => setIsMuted(!isMuted)} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${isMuted ? "bg-slate-100 text-slate-900" : "text-slate-500 hover:bg-slate-50"}`}>
+                                    <button onClick={toggleMute} className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-colors ${isMuted ? "bg-slate-100 text-slate-900" : "text-slate-500 hover:bg-slate-50"}`}>
                                         <div className={`h-10 w-10 rounded-full flex items-center justify-center ${isMuted ? "bg-slate-200" : "bg-slate-100"}`}>
                                             {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
                                         </div>
-                                        <span className="text-[10px] font-medium">Mute</span>
+                                        <span className="text-[10px] font-medium">{isMuted ? "Unmute" : "Mute"}</span>
                                     </button>
                                     <button className="flex flex-col items-center gap-1 p-2 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors">
                                         <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center">
@@ -326,8 +341,8 @@ export function CallPanel() {
                                         key={opt.id}
                                         onClick={() => setOutcome(opt.id)}
                                         className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all duration-200 ${activeCall.outcome === opt.id
-                                                ? `${opt.color} border-transparent ring-2 ring-offset-1 shadow-sm`
-                                                : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
+                                            ? `${opt.color} border-transparent ring-2 ring-offset-1 shadow-sm`
+                                            : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
                                             }`}
                                     >
                                         <span className="text-xl mb-1">{opt.icon}</span>

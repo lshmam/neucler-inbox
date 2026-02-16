@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { Device, Call } from "@twilio/voice-sdk";
 
 import { CallOutcome } from "@/types/call";
 
@@ -38,6 +39,7 @@ export interface ActiveCall {
 
 interface CallContextType {
     activeCall: ActiveCall | null;
+    deviceReady: boolean;
     initiateCall: (customer: CallCustomer, direction?: CallDirection) => void;
     startCall: () => void; // Transition from pre-call to ringing
     answerCall: () => void;
@@ -46,6 +48,8 @@ interface CallContextType {
     setPostCallNotes: (notes: string) => void;
     dismissCall: () => void;
     simulateIncoming: (customer: CallCustomer) => void;
+    toggleMute: () => void;
+    isMuted: boolean;
 }
 
 const CallContext = createContext<CallContextType | null>(null);
@@ -58,6 +62,11 @@ export function useCall() {
 
 export function CallProvider({ children }: { children: React.ReactNode }) {
     const [activeCall, setActiveCall] = useState<ActiveCall | null>(null);
+    const [deviceReady, setDeviceReady] = useState(false);
+    const [isMuted, setIsMuted] = useState(false);
+
+    const deviceRef = useRef<Device | null>(null);
+    const callRef = useRef<Call | null>(null); // The actual Twilio Call object
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const router = useRouter();
 
@@ -67,6 +76,54 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         activeCallRef.current = activeCall;
     }, [activeCall]);
+
+    // Initialize Twilio Device on mount
+    useEffect(() => {
+        const initDevice = async () => {
+            try {
+                const res = await fetch("/api/twilio/token", { method: "POST" });
+                if (!res.ok) {
+                    console.error("Failed to fetch Twilio token");
+                    return;
+                }
+                const { token } = await res.json();
+
+                const device = new Device(token, {
+                    codecPreferences: [Call.Codec.Opus, Call.Codec.PCMU],
+                });
+                deviceRef.current = device;
+
+                device.on("registered", () => {
+                    console.log("Twilio Device Registered");
+                    setDeviceReady(true);
+                });
+
+                device.on("error", (error) => {
+                    console.error("Twilio Device Error:", error);
+                });
+
+                // Handle Incoming Calls (Optional for this flow, but good to have)
+                device.on("incoming", (call) => {
+                    console.log("Incoming call from:", call.parameters.From);
+                    // We could handle inbound here...
+                });
+
+                await device.register();
+
+            } catch (error) {
+                console.error("Error initializing Twilio Device:", error);
+            }
+        };
+
+        initDevice();
+
+        return () => {
+            if (deviceRef.current) {
+                deviceRef.current.destroy();
+            }
+        };
+    }, []);
+
 
     // Timer for call duration
     useEffect(() => {
@@ -108,13 +165,20 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             return;
         }
 
+        if (!deviceRef.current) {
+            console.error("Twilio Device not initialized");
+            alert("Call system not ready. Please refresh.");
+            return;
+        }
+
         console.log("Starting call...", currentCall.customer.name);
 
         // Optimistic UI update
         setActiveCall(prev => prev ? { ...prev, state: "ringing" } : null);
 
         try {
-            // Persist to DB
+            // Persist to DB (Log start)
+            /*
             const res = await fetch('/api/calls/start', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -123,31 +187,45 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
                     direction: currentCall.direction
                 })
             });
+            */
 
-            if (res.ok) {
-                const data = await res.json();
-                console.log("✅ Call persisted with ID:", data.callId);
+            // Initiate Outbound Call via Twilio SDK
+            // We use the customer phone as the 'To' parameter.
+            // The backend /api/twilio/voice will receive this parameter.
+            const destinationNumber = currentCall.customer.phone;
 
-                // Update with Real ID
-                setActiveCall(prev => prev ? { ...prev, id: data.callId } : null);
-            } else {
-                console.error("Failed to persist call:", await res.text());
-            }
+            // RETELL AGENT OVERRIDE:
+            // If we want to force call the Retell Agent (Simulated Customer), we might do it here.
+            // For now, assuming the customer.phone IS the Retell Agent number if simulation mode.
+
+            const call = await deviceRef.current.connect({
+                params: {
+                    To: destinationNumber
+                }
+            });
+
+            callRef.current = call;
+
+            call.on("accept", () => {
+                console.log("Call Connected!");
+                setActiveCall(prev => prev ? { ...prev, state: "connected", startedAt: Date.now() } : null);
+            });
+
+            call.on("disconnect", () => {
+                console.log("Call Disconnected");
+                setActiveCall(prev => prev ? { ...prev, state: "ended" } : null);
+                callRef.current = null;
+            });
+
+            call.on("error", (error) => {
+                console.error("Call Error:", error);
+                setActiveCall(prev => prev ? { ...prev, state: "ended" } : null); // Or error state
+            });
 
         } catch (e) {
             console.error("Error starting call:", e);
+            setActiveCall(prev => prev ? { ...prev, state: "ended" } : null);
         }
-
-        // Auto-connect after 2s for outbound (simulating pickup)
-        setTimeout(() => {
-            setActiveCall(current => {
-                if (current && current.state === "ringing") {
-                    console.log("Call connected!");
-                    return { ...current, state: "connected", startedAt: Date.now() };
-                }
-                return current;
-            });
-        }, 3000);
 
     }, []);
 
@@ -157,6 +235,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }, [initiateCall]);
 
     const answerCall = useCallback(() => {
+        // Only applicable if we handled incoming calls via SDK
         setActiveCall(prev => prev
             ? { ...prev, state: "connected", startedAt: Date.now() }
             : null
@@ -164,11 +243,21 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const endCall = useCallback(() => {
-        setActiveCall(prev => prev
-            ? { ...prev, state: "ended" }
-            : null
-        );
+        if (callRef.current) {
+            callRef.current.disconnect();
+        } else {
+            // Force UI state if no active SDK call
+            setActiveCall(prev => prev ? { ...prev, state: "ended" } : null);
+        }
     }, []);
+
+    const toggleMute = useCallback(() => {
+        if (callRef.current) {
+            const newMutedState = !callRef.current.isMuted();
+            callRef.current.mute(newMutedState);
+            setIsMuted(newMutedState);
+        }
+    }, [isMuted]);
 
     const setOutcome = useCallback((outcome: ActiveCall["outcome"]) => {
         setActiveCall(prev => prev ? { ...prev, outcome } : null);
@@ -180,11 +269,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     const dismissCall = useCallback(() => {
         setActiveCall(null);
+        setIsMuted(false);
     }, []);
 
     return (
         <CallContext.Provider value={{
             activeCall,
+            deviceReady,
             initiateCall,
             startCall,
             answerCall,
@@ -193,6 +284,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
             setPostCallNotes,
             dismissCall,
             simulateIncoming,
+            toggleMute,
+            isMuted
         }}>
             {children}
         </CallContext.Provider>
